@@ -186,8 +186,9 @@ export class BookAnimator {
   private moveClasp(animate: boolean, to: 'loose' | 'rest'): Promise<void> {
     const rest = { transform: CLASP_REST, opacity: 1 };
     const loose = { transform: CLASP_LOOSE, opacity: 0 };
-    const frames = to === 'loose' ? [rest, loose] : [loose, rest];
-    if (!animate) return this.set(this.parts.clasp, frames[1]);
+    const [from, target] = to === 'loose' ? [rest, loose] : [loose, rest];
+    const frames = [from, target];
+    if (!animate) return this.set(this.parts.clasp, target);
     return this.phase(false, () =>
       this.play(this.parts.clasp, frames, {
         duration: this.timings.clasp,

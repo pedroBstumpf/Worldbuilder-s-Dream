@@ -1,0 +1,130 @@
+<!-- Cena: o livro é um único objeto 3D que muda de estado (ADR-0011). -->
+<!-- Clique na cena só pula a animação; o teclado usa Esc/Enter (onKeydown). -->
+<!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
+<main
+  #scene
+  class="book-scene"
+  [attr.aria-label]="text.scene"
+  [attr.aria-busy]="busy()"
+  [attr.data-cover]="coverOpen() ? 'open' : 'closed'"
+  [attr.data-leaf]="leafTurned() ? 'turned' : 'flat'"
+  (click)="onSceneClick($event)"
+>
+  @if (state() === 'open') {
+    <div class="book-actions">
+      <button
+        wd-icon-button
+        type="button"
+        icon="logout"
+        tooltipPosition="left"
+        [label]="text.library.signOut"
+        (click)="signOut()"
+      ></button>
+    </div>
+  }
+
+  <div class="book">
+    <!-- Página revelada pela virada: o mapa do mundo em página inteira. -->
+    <section
+      class="map-page wd-page"
+      aria-labelledby="wd-map-page-title"
+      [inert]="state() !== 'turned'"
+    >
+      <!-- Zoom até o canvas: mesmo nome de View Transition do host do mapa (docs/04). -->
+      <div
+        class="map-frame"
+        [style.view-transition-name]="state() === 'turned' ? 'wd-world-map' : null"
+      >
+        <svg class="map-rose" viewBox="-50 -50 100 100" aria-hidden="true" focusable="false">
+          <circle r="40" />
+          <path d="M0 -46 L6 0 L0 46 L-6 0 Z" />
+          <path d="M-46 0 L0 -6 L46 0 L0 6 Z" />
+        </svg>
+        <p class="text-center font-book text-lg text-couro-600 italic">
+          {{ text.mapPage.noMap }}
+        </p>
+      </div>
+      <h2 id="wd-map-page-title" class="wd-inscription text-center text-xl text-couro-900">
+        {{ library.selected()?.name }}
+      </h2>
+      <div class="shade shade-from-spine"></div>
+    </section>
+
+    <!-- Folha direita: frontispício do mundo escolhido (virada rígida). -->
+    <div class="leaf" [class.invisible]="showStrips()">
+      <div class="face face-front wd-page" [inert]="state() !== 'open'">
+        <wd-world-frontispiece
+          [world]="library.selected()"
+          [status]="library.status()"
+          (open)="openWorld($event)"
+          (create)="createWorld()"
+        />
+        <div class="shade shade-from-edge"></div>
+      </div>
+      <div class="face face-back wd-page" aria-hidden="true"></div>
+    </div>
+
+    <!-- Virada curvada: a mesma folha em faixas encadeadas (cópias decorativas). -->
+    <div class="strips" [class.invisible]="!showStrips()" aria-hidden="true" inert>
+      <ng-container *ngTemplateOutlet="strip; context: { $implicit: 0 }" />
+    </div>
+
+    <!-- Capa: frente de couro com a placa; verso com o sumário (livro aberto). -->
+    <div class="cover">
+      <div class="face face-front leather" [inert]="state() !== 'closed'">
+        <svg class="rose" viewBox="-50 -50 100 100" aria-hidden="true" focusable="false">
+          <circle r="44" class="rose-ring" />
+          <circle r="36" class="rose-ring" />
+          <path class="rose-point" d="M0 -46 L7 0 L0 46 L-7 0 Z" />
+          <path class="rose-point" d="M-46 0 L0 -7 L46 0 L0 7 Z" />
+          <path
+            class="rose-minor"
+            d="M-26 -26 L4 -4 L26 26 L-4 4 Z M26 -26 L4 4 L-26 26 L-4 -4 Z"
+          />
+          <circle r="4" class="rose-hub" />
+        </svg>
+        <wd-cover-plaque
+          [busy]="state() === 'signing-in'"
+          [error]="coverError()"
+          (signIn)="signIn()"
+        />
+      </div>
+      <section class="face face-back wd-page left-page" [inert]="state() !== 'open'">
+        <wd-library-contents
+          [worlds]="library.worlds()"
+          [selectedId]="library.selected()?.id ?? null"
+          [status]="library.status()"
+          [ownerName]="ownerName()"
+          (choose)="library.select($event)"
+          (create)="createWorld()"
+          (retry)="library.load()"
+        />
+        <div class="shade shade-to-spine"></div>
+      </section>
+    </div>
+
+    <div class="clasp" aria-hidden="true"></div>
+  </div>
+</main>
+
+<!-- Uma faixa da folha curvada; a próxima é filha desta (dobra em cadeia). -->
+<ng-template #strip let-i>
+  <div class="strip" [style.--strip-i]="i">
+    <div class="face face-front">
+      <div class="strip-content wd-page">
+        <wd-world-frontispiece
+          decorative
+          [world]="library.selected()"
+          [status]="library.status()"
+        />
+      </div>
+      <div class="shade shade-from-edge"></div>
+    </div>
+    <div class="face face-back">
+      <div class="strip-back wd-page"></div>
+    </div>
+    @if (i < stripIndexes.length - 1) {
+      <ng-container *ngTemplateOutlet="strip; context: { $implicit: i + 1 }" />
+    }
+  </div>
+</ng-template>
