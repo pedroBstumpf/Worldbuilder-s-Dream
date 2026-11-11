@@ -9,6 +9,8 @@ const devRoutes: Routes =
     ? [
         // Vitrine interna de shared/ui (F0-04).
         { path: 'dev', loadComponent: () => import('@features/dev/dev.page') },
+        // Prova de conceito do livro (F0-07, ADR-0011).
+        { path: 'dev/livro', loadComponent: () => import('@features/dev/book-poc/book-poc.page') },
       ]
     : [];
 

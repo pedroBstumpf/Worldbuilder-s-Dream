@@ -23,4 +23,12 @@ describe('app routes', () => {
 
     expect(router.url).toBe('/dev');
   });
+
+  it('serves the book proof of concept in development', async () => {
+    const router = setup();
+
+    await router.navigateByUrl('/dev/livro');
+
+    expect(router.url).toBe('/dev/livro');
+  });
 });

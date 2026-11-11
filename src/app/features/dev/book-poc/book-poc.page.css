@@ -1,0 +1,346 @@
+/*
+ * Livro em CSS 3D da prova de conceito (F0-07, ADR-0011).
+ * Profundidade das faces (evita que planos coincidentes briguem):
+ *   capa: frente 3px / verso 1px · folha e faixas: 2px / 2px · página do mapa: 0.
+ * Ao girar 180°, o verso passa a ficar por cima: a folha virada (2px) cobre o
+ * verso da capa (1px), como num livro de verdade.
+ */
+
+.poc-scene {
+  --page-h: min(66vh, 620px, calc((100cqw - 48px) / 1.44));
+  --page-w: calc(var(--page-h) * 0.72);
+  --strips: 8;
+  --shade: color-mix(in oklab, var(--couro-950) 75%, transparent);
+
+  display: grid;
+  place-items: center;
+  min-block-size: calc(var(--page-h) + 96px);
+  overflow: hidden;
+  container-type: inline-size;
+  perspective: 2000px;
+  background-color: var(--couro-950);
+  background-image:
+    radial-gradient(
+      ellipse 55% 45% at 50% 0%,
+      color-mix(in oklab, var(--ouro-300) 16%, transparent),
+      transparent 75%
+    ),
+    radial-gradient(ellipse at center, transparent 45%, var(--shade) 100%);
+}
+
+.poc-book {
+  position: relative;
+  inline-size: calc(var(--page-w) * 2);
+  block-size: var(--page-h);
+  transform: translateX(-25%);
+  transform-style: preserve-3d;
+}
+
+/* Dobradiças: giram em torno da lombada (centro do livro). */
+.poc-cover,
+.poc-leaf,
+.poc-strips,
+.poc-map-page {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 50%;
+  inline-size: var(--page-w);
+  block-size: 100%;
+}
+
+.poc-cover,
+.poc-leaf,
+.poc-strips,
+.poc-strip {
+  transform-origin: left center;
+  transform-style: preserve-3d;
+}
+
+.poc-invisible {
+  visibility: hidden;
+}
+
+.poc-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  border-radius: 0 8px 8px 0;
+}
+
+.poc-face-front {
+  transform: translateZ(2px);
+}
+
+.poc-face-back {
+  border-radius: 8px 0 0 8px;
+  transform: rotateY(180deg) translateZ(2px);
+}
+
+.poc-cover > .poc-face-front {
+  transform: translateZ(3px);
+}
+
+.poc-cover > .poc-face-back {
+  transform: rotateY(180deg) translateZ(1px);
+}
+
+/* Sombra da lombada, fixa, em cada página. */
+.poc-map-page::before,
+.poc-leaf > .poc-face-front::before,
+.poc-strip-content::before,
+.poc-left-page::before,
+.poc-leaf > .poc-face-back::before,
+.poc-strip-back::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background-image: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--couro-700) 35%, transparent),
+    transparent 12%
+  );
+}
+
+.poc-left-page::before,
+.poc-leaf > .poc-face-back::before,
+.poc-strip-back::before {
+  background-image: linear-gradient(
+    to left,
+    color-mix(in oklab, var(--couro-700) 35%, transparent),
+    transparent 12%
+  );
+}
+
+/* Sombras animadas (só opacity). */
+.poc-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.poc-shade-from-edge {
+  background-image: linear-gradient(
+    to left,
+    var(--shade),
+    color-mix(in oklab, var(--couro-950) 15%, transparent)
+  );
+}
+
+.poc-shade-from-spine {
+  background-image: linear-gradient(to right, var(--shade), transparent 65%);
+}
+
+.poc-shade-to-spine {
+  background-image: linear-gradient(to left, var(--shade), transparent 60%);
+}
+
+/* Capa */
+.poc-leather {
+  display: flex;
+  flex-direction: column;
+  gap: 6%;
+  align-items: center;
+  justify-content: center;
+  padding: 10%;
+  background-color: var(--couro-800);
+  background-image: var(--wd-texture-leather);
+  border: 1px solid var(--wd-rule);
+  border-radius: 3px 12px 12px 3px;
+  outline: 1px solid var(--wd-rule-inner);
+  outline-offset: -10px;
+  box-shadow: var(--wd-shadow-panel);
+}
+
+.poc-rose {
+  inline-size: 46%;
+}
+
+.poc-rose-ring {
+  fill: none;
+  stroke: var(--ouro-500);
+  stroke-width: 1.2;
+}
+
+.poc-rose-point {
+  fill: var(--ouro-400);
+  stroke: var(--ouro-700);
+  stroke-width: 0.8;
+}
+
+.poc-rose-minor {
+  fill: var(--ouro-700);
+}
+
+.poc-rose-hub {
+  fill: var(--couro-900);
+  stroke: var(--ouro-300);
+}
+
+.poc-plaque {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  inline-size: 86%;
+  padding: 16px 12px;
+  border: 1px solid var(--ouro-500);
+  border-radius: var(--wd-radius-control);
+  outline: 1px solid var(--wd-rule-inner);
+  outline-offset: -4px;
+}
+
+.poc-clasp {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: calc(100% - 34px);
+  inline-size: 58px;
+  block-size: 42px;
+  background-color: var(--couro-700);
+  background-image: var(--wd-texture-leather);
+  border: 1px solid var(--wd-rule);
+  border-radius: 6px 21px 21px 6px;
+  box-shadow: var(--wd-shadow-panel);
+  transform: translateY(-50%) translateZ(4px);
+}
+
+.poc-clasp::after {
+  position: absolute;
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+  inline-size: 16px;
+  block-size: 16px;
+  content: '';
+  background-image: radial-gradient(circle at 35% 35%, var(--ouro-200), var(--ouro-700));
+  border-radius: 50%;
+}
+
+/* Verso da capa: sumário */
+.poc-left-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12% 10%;
+}
+
+.poc-toc-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.poc-toc-dots {
+  flex: 1;
+  border-block-end: 1px dotted var(--couro-500);
+}
+
+/* Frontispício (folha direita) */
+.poc-frontispiece {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  padding: 10%;
+}
+
+.poc-thumb {
+  inline-size: 82%;
+  background-color: var(--pergaminho-100);
+  border: 2px solid var(--ouro-500);
+  outline: 1px solid var(--wd-rule);
+  outline-offset: 3px;
+}
+
+/* Virada curvada: cada faixa mostra o seu pedaço da página inteira. */
+.poc-strip {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+
+  /* 1 px de sobreposição esconde a fresta de antialiasing entre faixas. */
+  inline-size: calc(var(--page-w) / var(--strips) + 1px);
+  block-size: 100%;
+}
+
+.poc-strip > .poc-strip {
+  inset-inline-start: calc(100% - 1px);
+}
+
+.poc-strip > .poc-face {
+  overflow: hidden;
+  border-radius: 0;
+}
+
+.poc-strip-content,
+.poc-strip-back {
+  position: absolute;
+  inset-block: 0;
+  inline-size: var(--page-w);
+}
+
+.poc-strip-content {
+  inset-inline-start: calc(var(--poc-i) * var(--page-w) / var(--strips) * -1);
+}
+
+/* O verso gira 180°: a faixa i mostra o trecho a (i + 1) faixas da lombada. */
+.poc-strip-back {
+  inset-inline-start: calc((var(--poc-i) + 1) * var(--page-w) / var(--strips) - var(--page-w));
+}
+
+/* Página do mapa */
+.poc-map-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 9% 9% 7%;
+  border-radius: 0 8px 8px 0;
+}
+
+.poc-map-frame {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-block-size: 0;
+  background-color: var(--pergaminho-100);
+  border: 2px solid var(--ouro-500);
+  outline: 1px solid var(--wd-rule);
+  outline-offset: 3px;
+}
+
+.poc-map-art {
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.poc-map-land {
+  fill: color-mix(in oklab, var(--pergaminho-300) 70%, transparent);
+  stroke: var(--couro-600);
+  stroke-width: 1.2;
+}
+
+.poc-map-river {
+  fill: none;
+  stroke: var(--tinta);
+  stroke-width: 1.2;
+}
+
+.poc-map-rose path {
+  fill: var(--ouro-500);
+}
+
+/* Tabela de resultados */
+.poc-results th,
+.poc-results td {
+  padding: 6px 10px;
+  text-align: end;
+  white-space: nowrap;
+  border-block-end: 1px solid var(--wd-divider);
+}
+
+.poc-results th:first-child {
+  text-align: start;
+}
