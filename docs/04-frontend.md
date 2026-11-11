@@ -86,18 +86,22 @@ Todos em `shared/ui/`, standalone, `OnPush`, estilizados com Tailwind e tokens `
 
 | Componente | Base | Notas |
 |------------|------|-------|
-| `wd-button` / `wd-icon-button` | `<button>` nativo | variantes `primary` (ouro), `secondary`, `ghost`, `danger` (lacre); ícone exige `aria-label` e tooltip |
-| `wd-tooltip` | CDK Overlay + `aria-describedby` | painel de couro, texto em caixa-alta (Cinzel) nas ferramentas |
-| `wd-dialog` | `@angular/cdk/dialog` | foco preso e restaurado; cantoneiras nos diálogos importantes |
+| `wd-button` / `wd-icon-button` | `<button>` nativo | seletor de atributo (`<button wd-button variant="primary">`); variantes `primary` (ouro), `secondary`, `ghost`, `danger` (lacre), tamanhos `sm`/`md`. `wd-icon-button` exige `label`, que vira `aria-label` e tooltip (sem ele o build falha); `pressed` torna o botão alternável (`aria-pressed`, fundo ouro) |
+| `wdTooltip` (diretiva) | CDK Overlay + `AriaDescriber` | painel de couro, texto em caixa-alta (Cinzel); abre no hover (400 ms) e no foco por teclado, fecha com Esc; o ponteiro pode passar sobre o balão; não descreve quando repete o `aria-label` |
+| `wd-dialog` + `DialogService` | `@angular/cdk/dialog` | `DialogService.open(Componente, { data })`; o componente usa `<wd-dialog title surface ornate>` e marca as ações com `wdDialogAction`. Foco preso e restaurado, `aria-labelledby` no título, Esc fecha (salvo `disableClose`); superfície couro ou pergaminho; cantoneiras com `ornate` |
 | `wd-menu` | `@angular/cdk/menu` | menus de contexto de token e "⋯" |
 | `wd-select` / `wd-combobox` | CDK Listbox + Overlay | escolha de tipo, local, calendário |
 | `wd-tabs` | `ListKeyManager` (CDK A11y) + roles `tablist`/`tab`/`tabpanel` | abas do Explorar e da ficha |
 | `wd-text-field` / `wd-textarea` | `<input>`/`<textarea>` nativos | rótulo sempre visível; erro abaixo do campo |
 | `wd-switch` / `wd-checkbox` | elementos nativos estilizados | — |
-| `wd-toast` | CDK Overlay + `LiveAnnouncer` | substitui snackbar; ação "Desfazer" quando couber |
+| `wd-toast` + `ToastService` | CDK Overlay + `LiveAnnouncer` | substitui snackbar; `show({ message, kind, action })`; anuncia uma vez (erro como `assertive`), some em 5 s (8 s com ação), pausa no hover e no foco, no máximo 3; ação "Desfazer" quando couber |
 | `wd-popover` | CDK Overlay (posição conectada) | popover do mapa (`docs/05`) |
 | `wd-drop-zone` | diretiva própria | área de importação de mapa |
 | `wd-virtual-list` | `cdk-virtual-scroll-viewport` | listas longas do Explorar |
+
+- **Ícones**: `<wd-icon name="…">` (Material Symbols Rounded, peso 300), sempre `aria-hidden`; o nome acessível fica no controle.
+- **Textos dentro de `shared/ui`** ("Fechar", "Dispensar aviso"): `shared` não importa `core`, então os componentes leem o token `WD_UI_STRINGS`, fornecido no `app.config` com `provideUiStrings(UI_STRINGS)` a partir de `core/strings`.
+- **Vitrine `/dev`** (`features/dev`): todos os componentes sobre couro e pergaminho, para conferir visual, teclado e leitor de tela. A rota só existe com `ngDevMode`; o build de produção remove a rota e o chunk.
 
 Acompanhar o **Angular Aria** (componentes acessíveis sem estilo do próprio Angular): se estiver estável, pode substituir as implementações próprias de abas, listbox, combobox e menu.
 
