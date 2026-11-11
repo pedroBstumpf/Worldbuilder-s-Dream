@@ -1,12 +1,10 @@
-import { Component, signal } from '@angular/core';
+import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
+// OnPush é o padrão no Angular 22; não use ChangeDetectionStrategy.Eager.
 @Component({
-  imports: [RouterOutlet],
   selector: 'wd-root',
-  styleUrl: './app.component.css',
+  imports: [RouterOutlet],
   templateUrl: './app.component.html',
 })
-export class App {
-  protected readonly title = signal('worldbuilders-dream');
-}
+export class AppComponent {}
