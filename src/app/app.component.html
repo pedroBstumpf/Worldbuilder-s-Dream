@@ -1,1 +1,5 @@
 <router-outlet />
+@if (demoMode) {
+  <!-- Enquanto a barra superior do livro não existe, o selo fica no topo do app. -->
+  <wd-demo-badge [label]="demoStrings.badge" [detail]="demoStrings.badgeDetail" />
+}
