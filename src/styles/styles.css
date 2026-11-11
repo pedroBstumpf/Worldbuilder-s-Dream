@@ -143,6 +143,61 @@
       transition: none;
     }
   }
+
+  /* Menus (CDK Menu): painel de couro; item ativo pelo teclado em couro-700. */
+  .wd-menu {
+    display: flex;
+    flex-direction: column;
+    min-inline-size: 220px;
+    max-inline-size: min(360px, calc(100vw - 32px));
+    max-block-size: min(70dvh, 560px);
+    padding: 6px;
+    overflow-y: auto;
+    color: var(--wd-text-on-surface);
+    background-color: var(--wd-surface);
+    background-image: var(--wd-texture-leather);
+    border: 1px solid var(--wd-rule-strong);
+    border-radius: var(--wd-radius-panel);
+    box-shadow: var(--wd-shadow-panel);
+  }
+
+  .wd-menu-heading {
+    padding: 6px 12px 4px;
+    font-size: 0.75rem;
+    color: var(--wd-text-muted);
+  }
+
+  .wd-menu-item {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    min-block-size: 36px;
+    padding-inline: 12px;
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    color: inherit;
+    text-align: start;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    border-radius: var(--wd-radius-control);
+  }
+
+  .wd-menu-item:hover,
+  .wd-menu-item:focus-visible {
+    background-color: var(--wd-surface-active);
+    outline: none;
+  }
+
+  .wd-menu-item[aria-checked='true'] {
+    color: var(--wd-accent);
+  }
+
+  .wd-menu-divider {
+    margin: 4px 6px;
+    border: 0;
+    border-block-start: 1px solid var(--wd-divider);
+  }
 }
 
 /*
