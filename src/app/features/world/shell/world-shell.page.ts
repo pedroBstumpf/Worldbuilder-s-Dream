@@ -169,7 +169,12 @@ const INTERACTIVE = 'button, a, input, select, textarea, [role="menuitem"], [rol
         [label]="text.backToLibrary"
         (click)="backToLibrary()"
       ></button>
-      <h1 #title id="wd-world-title" class="flex min-w-0 justify-center" tabindex="-1">
+      <h1
+        #title
+        id="wd-world-title"
+        class="flex max-w-full min-w-0 justify-center justify-self-center"
+        tabindex="-1"
+      >
         @if (store.activeMap(); as map) {
           <wd-map-title
             [title]="map.name"
