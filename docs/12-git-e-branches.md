@@ -200,25 +200,20 @@ Cada linha é **uma branch**. A coluna "Ler" diz quais documentos o Claude preci
 | [x] | F0-05 | `feat/f0-05-domain-core` | `domain/`: modelos (iguais ao `docs/07`), portas, calendário e interpolação com testes | 06, 07 |
 | [x] | F0-06 | `feat/f0-06-local-data` | `data-access/local` (IndexedDB), `FakeAuthService`, `provideLocalDataAccess`, selo de modo demonstração | 04, 10 |
 | [x] | F0-07 | `spike/f0-07-book-poc` | Prova de conceito: capa → abertura → virada de página; medir fps; registrar a decisão no ADR-0011 | 05, ADR-0011 |
-| [ ] | F0-08 | `feat/f0-08-book-shell` | `BookShell`, capa (login simulado), biblioteca vazia, criar mundo → shell do mapa, partindo da prova de conceito `/dev/livro`. **Marco da Fase 0** | 04, 05, ADR-0011 |
+| [ ] | F0-08 | `feat/f0-08-book-shell` | **Livro**: `BookShell`, capa (login simulado), biblioteca vazia, criar mundo → shell do mapa; abertura, virada e zoom até o mapa (View Transition), transições completas/curtas/desligadas, preferências e detecção de fps baixo. Parte do `/dev/livro`, que é removido. **Marco da Fase 0** | 04, 05, ADR-0011 |
 
 ### Fase 1 — Front completo em modo local
+Uma branch por marco do `docs/10`. Cada tarefa entrega telas reais do app (sem páginas de teste); os componentes novos de `shared/ui` nascem dentro da tela que os usa.
+
 | ✓ | ID | Branch | Entrega | Ler |
 |---|----|--------|---------|-----|
-| [ ] | F1-01 | `feat/f1-01-map-engine` | Fachada `MapEngine` (PixiJS v8 + pixi-viewport), camadas, pan/zoom, enquadrar, câmera salva; medir fps com 500 tokens e imagem de 8192 px e registrar no ADR-0004 | 06 §1, ADR-0004 |
-| [ ] | F1-02 | `feat/f1-02-map-import` | Área de importação (arrastar/soltar, colar, escolher arquivo), worker WebP, redução a 8192 px, criar mapa | 05, 06 §0 |
-| [ ] | F1-03 | `feat/f1-03-map-scale-tree` | Escala do mapa, árvore de mapas, seletor no título, links entre mapas | 06 §1, §8 |
-| [ ] | F1-04 | `feat/f1-04-vtt-shell` | Barras flutuantes (recolher, redimensionar, preferências), atalhos | 04, 05 |
-| [ ] | F1-05 | `feat/f1-05-entities` | CRUD de entidades, ficha com Tiptap, retratos, apelidos, menções | 04, 07 |
-| [ ] | F1-06 | `feat/f1-06-explorer` | Painel Explorar (abas, lista virtual, arrastável), busca com MiniSearch, paleta `Ctrl+K` | 04, 05 |
-| [ ] | F1-07 | `feat/f1-07-calendar-timeline` | Editor de calendário, `TimelineStore`, formatação de datas; linha do tempo (SVG, eras, cursor acessível, zoom, play, velocidade, `?t=`) | 05, 06 §2, §7 |
-| [ ] | F1-08 | `feat/f1-08-events` | CRUD de eventos, marcadores na linha do tempo e no mapa, popover | 05, 06 §4 |
-| [ ] | F1-09 | `feat/f1-09-tokens-drag-keyframes` | Arrastar do Explorar para o mapa, tokens, keyframes, interpolação, lista acessível | 06 §3, §6 |
-| [ ] | F1-10 | `feat/f1-10-history-trails` | Desfazer/refazer (`HistoryStore`), rastro de movimento | 04, 06 §3 |
-| [ ] | F1-11 | `feat/f1-11-map-tools` | Marcar ponto, régua, pincel, região, rótulo, validade temporal, camadas | 06 §5 |
-| [ ] | F1-12 | `feat/f1-12-book-transitions` | Transições completas/curtas/desligadas (com o zoom biblioteca → mapa), volta à biblioteca, preferências, detecção de fps baixo | 04, 05, ADR-0011 |
-| [ ] | F1-13 | `feat/f1-13-library-data` | Renomear, duplicar, arquivar, lixeira; exportar/importar mundo em JSON (formato do `export-world`) | 01, 05, 07 |
-| [ ] | F1-14 | `test/f1-14-demo-e2e` | Jornadas e2e 1 e 2, axe, medição dos RNF. **Marco: demo para o cliente** (tag `v0.1.0-demo`) | 01, 03 |
+| [ ] | F1-01 | `feat/f1-01-maps` | **M1 · Mapas**: fachada `MapEngine` (PixiJS v8 + pixi-viewport), camadas, pan/zoom, enquadrar, câmera salva; área de importação (arrastar/soltar, colar, escolher arquivo), worker WebP, redução a 8192 px; escala, árvore de mapas, seletor no título, links entre mapas; barras flutuantes (recolher, redimensionar, preferências) e atalhos. Medir fps com 500 tokens e imagem de 8192 px e registrar no ADR-0004 | 04, 05, 06 §0, §1, §8, ADR-0004 |
+| [ ] | F1-02 | `feat/f1-02-entities` | **M2 · Entidades**: CRUD, ficha com Tiptap, retratos, apelidos, menções; painel Explorar (abas, lista virtual, arrastável), busca com MiniSearch, paleta `Ctrl+K` | 04, 05, 07 |
+| [ ] | F1-03 | `feat/f1-03-time` | **M3 · Tempo**: editor de calendário, `TimelineStore`, formatação de datas; linha do tempo (SVG, eras, cursor acessível, zoom, play, velocidade, `?t=`); CRUD de eventos, marcadores na linha do tempo e no mapa, popover | 05, 06 §2, §4, §7 |
+| [ ] | F1-04 | `feat/f1-04-tokens` | **M4 · Tokens**: arrastar do Explorar para o mapa, tokens, keyframes, interpolação, lista acessível; desfazer/refazer (`HistoryStore`), rastro de movimento | 04, 06 §3, §6 |
+| [ ] | F1-05 | `feat/f1-05-map-tools` | **M5 · Ferramentas**: marcar ponto, régua, pincel, região, rótulo, validade temporal, camadas | 06 §5 |
+| [ ] | F1-06 | `feat/f1-06-library-data` | **M6/M7 · Biblioteca e dados**: renomear, duplicar, arquivar, lixeira; exportar/importar mundo em JSON (formato do `export-world`) | 01, 05, 07 |
+| [ ] | F1-07 | `test/f1-07-demo-e2e` | Jornadas e2e 1 e 2, axe, medição dos RNF. **Marco: demo para o cliente** (tag `v0.1.0-demo`) | 01, 03 |
 
 ### Fase 2 — Back-end e banco
 | ✓ | ID | Branch | Entrega | Ler |

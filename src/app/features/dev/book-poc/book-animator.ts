@@ -2,7 +2,7 @@
  * Orquestrador da prova de conceito do livro (F0-07, ADR-0011). Cada etapa
  * devolve uma Promise e pode ser pulada. Só anima `transform` e `opacity`,
  * com Web Animations API e `will-change` apenas durante a animação.
- * O `BookAnimator` definitivo (F0-08/F1-12) parte deste rascunho.
+ * O `BookAnimator` definitivo (F0-08) parte deste rascunho.
  */
 
 export type BookState =

@@ -31,7 +31,7 @@ A ordem de construção é **front-end → back-end e banco → integrações �
 - `domain/`: modelos e portas (`WorldRepository`, `MapRepository`, `EntityRepository`, `EventRepository`, `AssetRepository`, `AuthService`), calendário e interpolação com testes.
 - `data-access/local`: adaptadores IndexedDB; `FakeAuthService`; variável de build `dataSource: 'local' | 'supabase'`.
 - CI (lint, testes, build, e2e) no GitHub Actions. Sem deploy da demonstração: as prévias são vídeos de tela.
-- **Prova de conceito do livro** (capa → abertura → virada de página, medindo fps; decidido no ADR-0011: curvatura própria). A medição do mapa (PixiJS v8 + pixi-viewport com 500 tokens e imagem de 8192 px) entra na primeira tarefa da Fase 1, junto com o `MapEngine`.
+- **Prova de conceito do livro** (capa → abertura → virada de página, medindo fps; decidido no ADR-0011: curvatura própria). A medição do mapa (PixiJS v8 + pixi-viewport com 500 tokens e imagem de 8192 px) entra no marco M1 da Fase 1, junto com o `MapEngine`. As transições do livro entram já no fim da Fase 0, com o `BookShell`.
 - **Pronto quando**: o app rodando localmente abre na capa, o livro abre na biblioteca vazia, criar mundo vira a página até a área de importação; CI verde.
 
 ## Fase 1 — Front completo em modo local (8–10 semanas)
