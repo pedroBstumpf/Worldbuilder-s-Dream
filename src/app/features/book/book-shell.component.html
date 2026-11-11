@@ -35,14 +35,19 @@
         class="map-frame"
         [style.view-transition-name]="state() === 'turned' ? 'wd-world-map' : null"
       >
-        <svg class="map-rose" viewBox="-50 -50 100 100" aria-hidden="true" focusable="false">
-          <circle r="40" />
-          <path d="M0 -46 L6 0 L0 46 L-6 0 Z" />
-          <path d="M-46 0 L0 -6 L46 0 L0 6 Z" />
-        </svg>
-        <p class="text-center font-book text-lg text-couro-600 italic">
-          {{ text.mapPage.noMap }}
-        </p>
+        @if (selectedCover(); as url) {
+          <!-- Miniatura do mapa: a ilustração que o zoom leva até o canvas. -->
+          <img class="map-thumb" [src]="url" alt="" />
+        } @else {
+          <svg class="map-rose" viewBox="-50 -50 100 100" aria-hidden="true" focusable="false">
+            <circle r="40" />
+            <path d="M0 -46 L6 0 L0 46 L-6 0 Z" />
+            <path d="M-46 0 L0 -6 L46 0 L0 6 Z" />
+          </svg>
+          <p class="text-center font-book text-lg text-couro-600 italic">
+            {{ text.mapPage.noMap }}
+          </p>
+        }
       </div>
       <h2 id="wd-map-page-title" class="wd-inscription text-center text-xl text-couro-900">
         {{ library.selected()?.name }}
@@ -55,6 +60,7 @@
       <div class="face face-front wd-page" [inert]="state() !== 'open'">
         <wd-world-frontispiece
           [world]="library.selected()"
+          [coverUrl]="selectedCover()"
           [status]="library.status()"
           (open)="openWorld($event)"
           (create)="createWorld()"
@@ -115,6 +121,7 @@
         <wd-world-frontispiece
           decorative
           [world]="library.selected()"
+          [coverUrl]="selectedCover()"
           [status]="library.status()"
         />
       </div>

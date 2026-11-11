@@ -19,11 +19,15 @@ import { formatEditDate } from './format-edit-date';
     @if (world(); as w) {
       <!-- Miniatura do mapa; sem mapa ainda, a rosa dos ventos em traço fino. -->
       <div class="thumb" aria-hidden="true">
-        <svg viewBox="-50 -50 100 100" focusable="false">
-          <circle r="34" />
-          <path d="M0 -42 L5 0 L0 42 L-5 0 Z" />
-          <path d="M-42 0 L0 -5 L42 0 L0 5 Z" />
-        </svg>
+        @if (coverUrl(); as url) {
+          <img [src]="url" alt="" />
+        } @else {
+          <svg viewBox="-50 -50 100 100" focusable="false">
+            <circle r="34" />
+            <path d="M0 -42 L5 0 L0 42 L-5 0 Z" />
+            <path d="M-42 0 L0 -5 L42 0 L0 5 Z" />
+          </svg>
+        }
       </div>
       <h2 class="wd-inscription text-center text-2xl text-couro-900">{{ w.name }}</h2>
       <p class="line-clamp-4 text-center font-book text-lg text-couro-600 italic">
@@ -58,6 +62,13 @@ import { formatEditDate } from './format-edit-date';
       outline-offset: 3px;
     }
 
+    .thumb img {
+      display: block;
+      inline-size: 100%;
+      aspect-ratio: 3 / 2;
+      object-fit: cover;
+    }
+
     .thumb svg {
       display: block;
       inline-size: 40%;
@@ -70,6 +81,8 @@ import { formatEditDate } from './format-edit-date';
 })
 export class WorldFrontispieceComponent {
   readonly world = input<World | null>(null);
+  /** Miniatura do mapa do mundo; sem ela, a rosa dos ventos. */
+  readonly coverUrl = input<string | null>(null);
   readonly status = input.required<LibraryStatus>();
   readonly decorative = input(false, { transform: booleanAttribute });
 

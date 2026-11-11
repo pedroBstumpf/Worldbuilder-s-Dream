@@ -278,6 +278,18 @@
   border: 2px dashed var(--ouro-500);
 }
 
+.map-frame:has(.map-thumb) {
+  padding: 0;
+  border-style: solid;
+}
+
+.map-thumb {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
 .map-rose {
   inline-size: 40%;
   fill: none;
