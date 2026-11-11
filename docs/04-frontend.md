@@ -42,10 +42,12 @@ export const appConfig: ApplicationConfig = {
 ```ts
 export const routes: Routes = [
   // O livro: um único BookShell persistente com dois estados (capa e biblioteca)
+  // O livro: um único BookShell persistente. As filhas só escolhem a página e aplicam os guards
+  // (não têm componente); `pathMatch: 'full'` impede a capa de casar por prefixo com /biblioteca.
   { path: '', loadComponent: () => import('@features/book/book-shell.component'), children: [
-      { path: '', canMatch: [guestGuard], loadComponent: () => import('@features/book/cover/cover.page') },
-      { path: 'convite', loadComponent: () => import('@features/book/cover/invite.page') },          // capa em modo convite (#token)
-      { path: 'biblioteca', canMatch: [authGuard], loadComponent: () => import('@features/book/library/library.page') },
+      { path: '', pathMatch: 'full', canMatch: [guestGuard], children: [] },
+      { path: 'convite', children: [] },                                   // capa em modo convite (#token), Fase 2
+      { path: 'biblioteca', canMatch: [authGuard], children: [] },
   ]},
   { path: 'configuracoes', canMatch: [authGuard], loadChildren: () => import('@features/settings/settings.routes') },
   { path: 'w/:worldId', canMatch: [authGuard], canActivate: [worldAccessGuard],
@@ -53,12 +55,12 @@ export const routes: Routes = [
   { path: '**', redirectTo: '' },
 ];
 ```
-- Usuário com sessão que acessa `/` vai para `/biblioteca` (abertura curta do livro).
+- Usuário com sessão que acessa `/` vai para `/biblioteca` (abertura curta do livro): o `guestGuard` redireciona e marca a chegada `resume`.
 - **Modo local (demonstração)**: `provideLocalDataAccess()` registra os adaptadores IndexedDB e o `FakeAuthService` (o botão "Entrar com Google" só simula o login, para as animações funcionarem). O build de produção falha se `dataSource` for `local`.
   - **Banco**: IndexedDB `worldbuilders-dream`, um *object store* por tabela do `docs/07`, com os mesmos modelos. Os adaptadores imitam o banco: `version` +1 e `updatedAt` a cada escrita, `conflict` para versão antiga ou chave única repetida, `not_found` para item ausente ou na lixeira, os padrões e os `check` do DDL (`local-checks.ts`; ao mudar um check numa migração, mude lá também). Nova tabela ou índice: incremente `LOCAL_DB_VERSION` e acrescente um passo no `upgrade`.
   - **Usuário simulado**: "Visitante", com id fixo (os mundos continuam dele depois de sair e entrar). A sessão fica no `localStorage` (`wd:local-session`). Para recomeçar do zero: DevTools › Application › Storage › *Clear site data*.
   - **Atraso e falha simulados**: `provideLocalDataAccess({ latencyMs, failureRate })` atrasa cada operação e faz uma fração delas falhar com `AppError('network')`, para exercitar os estados de carregamento e de erro.
-  - **Selo**: o token `DEMO_MODE` (`core/data-source`) fica verdadeiro e o app mostra `wd-demo-badge` ("Modo demonstração · dados só neste navegador") fixo no topo central, por cima do conteúdo, abaixo dos diálogos e sem receber cliques. Quando a barra superior do livro existir, o selo passa para ela. O `DEMO_MODE` serve só para selo e avisos; os dados vêm sempre das portas.
+  - **Selo**: o token `DEMO_MODE` (`core/data-source`) fica verdadeiro e o app mostra `wd-demo-badge` ("Modo demonstração · dados só neste navegador") fixo no topo central do livro, por cima do conteúdo, abaixo dos diálogos e sem receber cliques. Na tela do mundo, o selo fica dentro da barra superior (`<wd-demo-badge inline>`). O `DEMO_MODE` serve só para selo e avisos; os dados vêm sempre das portas.
 - Estado compartilhável na URL do mundo: `/w/:worldId?map=<id>&t=<tick>&sel=<entityId>`.
 - `worldAccessGuard` só melhora a UX; **a segurança real é o RLS**.
 
@@ -79,11 +81,12 @@ export const routes: Routes = [
 - O item de menu só aparece quando `is_app_admin()` é verdadeiro (a proteção real está nas Edge Functions).
 
 ### Transições do livro
-- `BookShellComponent` mantém o **livro 3D montado** entre capa e biblioteca; as rotas-filhas só trocam o conteúdo.
-- `BookAnimator` (`shared/motion/`) expõe `unclasp()`, `openCover()`, `closeCover()`, `turnPage(direction)`, `zoomIntoPage()` e `skip()`, cada um devolvendo `Promise<void>`. O componente aguarda e então navega.
-- Biblioteca → mapa: View Transitions com `view-transition-name: wd-world-map` compartilhado entre a ilustração da página e o host do canvas. `bookViewTransition` **pula** a transição quando a navegação não veio da biblioteca (link direto, botão voltar).
-- **Abrir mundo** chama `WorldStore.prefetch(worldId)` **antes** da animação.
-- `MotionPreferenceService` combina `prefers-reduced-motion` e a preferência salva (completas/curtas/desligadas) num signal `bookMotion()`.
+- `BookShellComponent` (`features/book`) mantém o **livro 3D montado** entre capa e biblioteca. Ele próprio desenha a capa (`wd-cover-plaque`), o sumário (`wd-library-contents`, verso da capa), o frontispício (`wd-world-frontispiece`, folha direita) e a página do mapa (sob a folha); o `LibraryStore` (fornecido no shell) lista e cria mundos. A página vem da URL de destino (`router.currentNavigation()`), não do `snapshot` da filha, que ainda não existe no construtor.
+- `BookAnimator` (`shared/motion/`) expõe `spinRose(work)`, `open(motion, { clasp })`, `close(motion)`, `turnPage('forward' | 'back', motion)`, `skip()`, `clear()` e `cancel()`; as etapas devolvem `Promise<void>`. O estado em repouso vem do CSS (`data-cover`, `data-leaf`); o animador grava o final inline e `clear()` devolve o controle ao CSS depois que o componente pinta o novo estado. O componente aguarda e então navega.
+- **Chegadas**: `BookTransitions` (`core/motion`) guarda, só em memória e para uma navegação, como a próxima tela chega: `resume` (abertura curta), `zoom-in` (biblioteca → mapa) ou `zoom-out` (mapa → biblioteca). Sem marca (link direto, recarga, botão voltar), a tela abre sem animação.
+- Biblioteca → mapa: View Transitions com `view-transition-name: wd-world-map` compartilhado entre a moldura da página do mapa e o host do mapa. `bookViewTransition` (`core/motion`) **pula** a transição sem chegada `zoom-*` ou no movimento reduzido (a tela do mundo faz um fade de 150 ms) e marca `<html data-book-zoom>` para o CSS escolher a duração. Clique, Esc ou Enter pulam o zoom. Em desenvolvimento, o Router registra um `AbortError` no console a cada transição pulada; é esperado.
+- **Abrir mundo** chama `WorldPrefetch.prefetch(worldId)` (`core/world`) **antes** da animação; a tela do mundo recebe a mesma Promise com `take()`. Vira parte do `WorldStore` quando ele existir.
+- `BookMotionService` (`core/motion`) dá o signal `motion()`: `full` sempre; `fade` com `prefers-reduced-motion`; `short` depois que `watchLowFps` (`shared/motion/low-fps.ts`) detecta fps baixo (até o fim da sessão). Não há preferência no app.
 - Especificação visual: [`docs/05` › Transições do livro](05-design.md#transições-do-livro).
 
 ## Componentes de UI próprios (sobre o CDK)
@@ -114,7 +117,7 @@ Acompanhar o **Angular Aria** (componentes acessíveis sem estilo do próprio An
 ## Estado
 | Store | Escopo | Conteúdo |
 |-------|--------|----------|
-| `SessionStore` | raiz | usuário, perfil, preferências (barras, tema, animações do livro) |
+| `SessionStore` | raiz | usuário (`core/auth`, NgRx SignalStore sobre a porta `AuthService`); depois, perfil e preferências (barras, tema) |
 | `WorldStore` | rota `w/:worldId` | mundo, calendário, entidades, eventos, mapas, membros, Docs vinculados |
 | `MapStore` | rota `w/:worldId` | cena do mapa ativo (tokens, keyframes, anotações), seleção |
 | `TimelineStore` | rota `w/:worldId` | `currentTick`, faixa visível, zoom, `isPlaying`, velocidade |

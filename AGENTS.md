@@ -21,7 +21,7 @@ Resumo das regras para pessoas e assistentes de IA. Os detalhes estão em `docs/
 - **Tokens do Google**: refresh token só no Vault (via Edge Functions); access token só em memória; nunca em logs.
 - **Segredos** só em Supabase Secrets e GitHub Secrets; nunca em `environment.ts`, commits ou logs.
 - **Cores e fontes só por tokens** (`--wd-*`, `couro-*`, `pergaminho-*`, `ouro-*`); ouro só para destaque.
-- **Animações**: só `transform`/`opacity`; respeitam `prefers-reduced-motion` e a preferência "Animações do livro"; transições do livro são puláveis.
+- **Animações**: só `transform`/`opacity`; respeitam `prefers-reduced-motion`; transições do livro são sempre completas (sem preferência no app), puláveis e caem para a versão curta com fps baixo.
 - **Código portado da Skiper UI/Magic UI**: cabeçalho com origem e licença e entrada em `THIRD_PARTY_NOTICES.md`; só componentes gratuitos.
 - **Acessibilidade**: todo controle tem nome acessível e é operável por teclado.
 - **Não quebrar o backup**: mudanças em schema, buckets ou segredos devem manter o `backup.yml` funcionando (`docs/09`).

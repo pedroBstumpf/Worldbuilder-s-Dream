@@ -42,7 +42,7 @@ A ordem de construção é **front-end → back-end e banco → integrações �
 | M3 · Tempo | Calendário configurável, linha do tempo com eras, play/velocidade, marcadores, CRUD de eventos |
 | M4 · Tokens | Arrastar para o mapa, keyframes, interpolação, rastro, desfazer/refazer |
 | M5 · Ferramentas | Marcar ponto, régua, pincel, região, rótulo (com validade temporal); camadas |
-| M6 · Livro | Capa, biblioteca, transições completas/curtas/desligadas, lixeira |
+| M6 · Livro | Capa, biblioteca, transições do livro, lixeira |
 | M7 · Dados portáveis | Exportar e importar mundo em JSON (formato do `export-world`) |
 
 **Marco de apresentação ao cliente**: as jornadas 1 e 2 do `docs/03` passam em modo local; RNF-01 a RNF-04 medidos.
@@ -77,7 +77,7 @@ Arte final da capa, os 5 componentes animados do MVP (Skiper UI/Magic UI), polim
 | Risco | Impacto | Mitigação |
 |-------|---------|-----------|
 | Cliente achar que a demo está quase pronta | Médio | Selo de modo demonstração; apresentar este roadmap junto |
-| Animações do livro levarem mais tempo que o previsto | Médio | Prova de conceito na Fase 0; versão curta e opção de desligar |
+| Animações do livro levarem mais tempo que o previsto | Médio | Prova de conceito na Fase 0; versão curta automática com fps baixo; puláveis |
 | Desempenho do canvas com imagens grandes | Alto | Limite de 8192 px, culling, atlas; prova de conceito na Fase 0 |
 | Modelo local divergir do banco | Médio | Modelos seguem o `docs/07`; teste que importa um JSON exportado no Supabase local na Fase 2 |
 | Conversor de Docs não cobrir os recursos usados nos textos reais | Médio | Fixtures com Docs reais do cliente; aviso "abra no Google Docs" para o que não for suportado |

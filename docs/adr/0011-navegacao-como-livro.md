@@ -8,11 +8,11 @@ A identidade do Worldbuilder's Dream é um grimório de couro. O usuário quer q
 
 ## Decisão
 - **`BookShellComponent`** é a rota de layout que contém `/` (capa) e `/biblioteca` (livro aberto). Detalhes em `docs/04` e `docs/05`. O livro é **um único objeto 3D persistente** (CSS `perspective`, `transform-style: preserve-3d`, `backface-visibility: hidden`) que muda de estado. A navegação entre capa e biblioteca troca o estado do livro, sem remontá-lo.
-- As animações são orquestradas por um **`BookAnimator`** (serviço com Web Animations API/`motion`) com estados `closed → authenticating → unclasping → opening → open → turning → zooming`. Cada etapa devolve uma `Promise` e pode ser **pulada**.
+- As animações são orquestradas por um **`BookAnimator`** (classe com a Web Animations API) com estados `closed → signing-in → opening → open → turning → turned` (e de volta: `returning`, `closing`). Cada etapa devolve uma `Promise` e pode ser **pulada**. O zoom até o mapa é a View Transition.
 - A passagem biblioteca → mapa usa **View Transitions API** (`withViewTransitions()` do Angular Router) com `view-transition-name: wd-world-map` compartilhado entre a ilustração da página e o canvas do mapa, criando o zoom contínuo. Em navegadores sem suporte, há fallback com fade de 200 ms.
 - O carregamento dos dados do mundo começa **no clique**, em paralelo à animação.
 - Rotas acessadas diretamente (link compartilhado, recarregar a página) **pulam** as animações.
-- Preferência do usuário: completas / curtas / desligadas. `prefers-reduced-motion` força o fade cruzado.
+- ~~Preferência do usuário: completas / curtas / desligadas.~~ **Revisto em 2026-11-11 (F0-08): as transições são sempre completas, para todos os perfis e navegadores; não há preferência no app.** Só duas exceções automáticas: `prefers-reduced-motion` força o fade cruzado (acessibilidade) e o fps baixo troca para a versão curta até o fim da sessão.
 - A virada de página pode usar uma biblioteca de *page flip* com licença permissiva (avaliar `page-flip`/StPageFlip, MIT) se a curvatura feita à mão não ficar convincente. Decidir na prova de conceito da Fase 0. **Decidido na F0-07: virada feita à mão, sem biblioteca** (ver [Resultado da prova de conceito](#resultado-da-prova-de-conceito-f0-07)).
 
 ## Consequências
@@ -48,6 +48,16 @@ Em todos os cenários: 0% de quadros longos (> 25 ms), pior quadro de 16,8 ms e 
 7. **Detecção de fps baixo** (para F0-08): se o primeiro quadro passar de 50 ms ou mais de 20% dos quadros dos primeiros 300 ms forem longos, as próximas transições da sessão usam a versão curta.
 
 ### Pendências
-- O zoom da biblioteca para o mapa (View Transition `wd-world-map`) não entrou na prova; fica para F0-08.
-- Repetir `pnpm perf:book -- --headed` (GPU de verdade) e medir no DevTools num notebook fraco na revisão de desempenho (F4-03).
-- `/dev/livro` serve de referência para o `BookShell` (F0-08) e pode ser apagada quando as transições definitivas existirem (F0-08).
+- ~~O zoom da biblioteca para o mapa não entrou na prova~~: feito na F0-08.
+- Medir o livro de verdade no painel Performance do DevTools, com GPU real, num notebook fraco, na revisão de desempenho (F4-03). O `pnpm perf:book` saiu junto com a `/dev/livro`.
+- ~~`/dev/livro` pode ser apagada quando as transições definitivas existirem~~: apagada na F0-08.
+
+## Implementação (F0-08)
+*2026-11-11.* `BookShell` em `features/book`, `BookAnimator` e detecção de fps baixo em `shared/motion`, `BookMotionService`, `BookTransitions` e `bookViewTransition` em `core/motion`. Detalhes em `docs/04` › Transições do livro.
+
+- **Página do livro pela URL de destino**: as rotas-filhas (`/` e `/biblioteca`) não têm componente; só escolhem a página e aplicam `guestGuard`/`authGuard`. A capa usa `pathMatch: 'full'` (sem isso, casaria por prefixo com `/biblioteca` e o `guestGuard` redirecionaria em laço).
+- **Estado em repouso no CSS** (`data-cover`, `data-leaf`); o animador grava o final inline e o componente chama `clear()` depois de pintar o novo estado, sem salto.
+- **Chegadas só em memória** (`BookTransitions`): recarregar ou voltar pelo histórico nunca repete animação. O `history.state` foi descartado porque o Router o restaura na recarga e no botão voltar.
+- **Zoom**: `view-transition-name: wd-world-map` na moldura da página do mapa (só no estado `turned`) e no host do mapa; 700 ms nas completas, 350 ms na versão curta; a barra superior entra deslizando depois. Volta: o mapa encolhe até a página, que desvira.
+- **Mundo sem mapa**: a página e a tela do mundo mostram a folha tracejada com a rosa dos ventos, até a importação (M1).
+- **Peso**: o chunk do livro tem 90 kB (23 kB gzip). O calendário padrão saiu do arquivo do schema Zod, que trazia ~500 kB com os locales.
