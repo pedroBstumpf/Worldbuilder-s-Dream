@@ -67,26 +67,10 @@ export type ToggleableLayer = (typeof TOGGLEABLE_LAYERS)[number];
       <button
         wd-icon-button
         type="button"
-        icon="zoom_in"
-        tooltipPosition="right"
-        [label]="text.zoomIn"
-        (click)="zoom.emit('in')"
-      ></button>
-      <button
-        wd-icon-button
-        type="button"
-        icon="zoom_out"
-        tooltipPosition="right"
-        [label]="text.zoomOut"
-        (click)="zoom.emit('out')"
-      ></button>
-      <button
-        wd-icon-button
-        type="button"
         icon="fit_screen"
         tooltipPosition="right"
         [label]="text.fit"
-        (click)="zoom.emit('fit')"
+        (click)="fit.emit()"
       ></button>
       <button
         wd-icon-button
@@ -202,7 +186,8 @@ export class LeftToolbarComponent {
   readonly collapsed = input(false);
 
   readonly toolChange = output<ToolId>();
-  readonly zoom = output<'in' | 'out' | 'fit'>();
+  /** O zoom é pela roda, pinça ou teclado; a barra só enquadra o mapa. */
+  readonly fit = output();
   readonly toggleLayer = output<ToggleableLayer>();
   readonly collapsedChange = output<boolean>();
 

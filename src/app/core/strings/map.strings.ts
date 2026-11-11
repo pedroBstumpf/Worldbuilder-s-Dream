@@ -112,8 +112,6 @@ export const MAP_STRINGS = {
     label: 'Ferramentas do mapa',
     select: 'Selecionar (V)',
     pan: 'Mover mapa (H)',
-    zoomIn: 'Aproximar (+)',
-    zoomOut: 'Afastar (−)',
     fit: 'Enquadrar mapa (0)',
     layers: 'Camadas',
     layerNames: { regions: 'Regiões e links', tokens: 'Tokens', labels: 'Rótulos e lupas' },

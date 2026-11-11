@@ -144,7 +144,7 @@ const INTERACTIVE = 'button, a, input, select, textarea, [role="menuitem"], [rol
         [hiddenLayers]="hiddenLayers()"
         [collapsed]="bars().leftCollapsed"
         (toolChange)="setTool($event)"
-        (zoom)="zoom($event)"
+        (fit)="fitMap()"
         (toggleLayer)="toggleLayer($event)"
         (collapsedChange)="setBars({ leftCollapsed: $event })"
       />
@@ -496,10 +496,8 @@ export default class WorldShellPage {
     this.tool.set(tool);
   }
 
-  protected zoom(action: 'in' | 'out' | 'fit'): void {
-    const canvas = this.canvas();
-    if (action === 'fit') canvas?.fit();
-    else canvas?.zoomBy(action === 'in' ? 1.25 : 0.8);
+  protected fitMap(): void {
+    this.canvas()?.fit();
   }
 
   protected toggleLayer(layer: ToggleableLayer): void {
