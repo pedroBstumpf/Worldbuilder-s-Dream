@@ -52,6 +52,14 @@
   --wd-dur-slow: 360ms;
   --wd-dur-page: 900ms;
   --wd-dur-cover: 1200ms;
+
+  /* Livro (ADR-0011): versão curta, fecho, zoom até o mapa e fade do movimento reduzido */
+  --wd-dur-page-short: 450ms;
+  --wd-dur-cover-short: 500ms;
+  --wd-dur-clasp: 350ms;
+  --wd-dur-zoom: 700ms;
+  --wd-dur-zoom-short: 350ms;
+  --wd-dur-fade: 150ms;
   --wd-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --wd-ease-page: cubic-bezier(0.45, 0.05, 0.25, 1);
   --wd-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);

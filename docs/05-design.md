@@ -246,6 +246,10 @@ Comentários em CSS sempre com `/* */`. Os overlays do CDK precisam de `@angular
 | `--wd-dur-slow` | 360 ms | diálogos, troca de aba |
 | `--wd-dur-page` | 900 ms | virada de página |
 | `--wd-dur-cover` | 1200 ms | abertura da capa |
+| `--wd-dur-page-short` / `--wd-dur-cover-short` | 450 / 500 ms | virada e abertura na versão curta |
+| `--wd-dur-clasp` | 350 ms | fecho da capa soltando |
+| `--wd-dur-zoom` / `--wd-dur-zoom-short` | 700 / 350 ms | zoom da página até o mapa (View Transition) |
+| `--wd-dur-fade` | 150 ms | fade cruzado do movimento reduzido |
 | `--wd-ease-out` | `cubic-bezier(.2,.8,.2,1)` | entradas |
 | `--wd-ease-page` | `cubic-bezier(.45,.05,.25,1)` | virada de página |
 | `--wd-ease-in-out` | `cubic-bezier(.65,0,.35,1)` | movimento de tokens na reprodução |
