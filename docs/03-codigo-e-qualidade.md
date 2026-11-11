@@ -21,6 +21,7 @@ worldbuilders-dream/
 │   │   ├── styles.css            # entrada: @import "tailwindcss"; @theme; camadas
 │   │   ├── palette.css           # primitivos couro / pergaminho / ouro
 │   │   ├── tokens.css            # semânticos --wd-*
+│   │   ├── fonts.css             # @font-face das fontes auto-hospedadas
 │   │   └── textures.css          # texturas e filetes
 │   └── app/
 │       ├── app.config.ts

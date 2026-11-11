@@ -77,6 +77,9 @@ A arte final da capa deve ser **própria** e entregue **em camadas** (base de co
 | | `lacre-claro` | `#e07a5f` | destrutivo e erros sobre couro |
 | | `musgo` | `#7f9a62` | sucesso, salvo |
 | | `tinta` | `#5c7fa3` | informação; links sobre pergaminho (com sublinhado) |
+| **Entidades** | `bronze` | `#9c7a4e` | anel padrão de local |
+| | `cobre` | `#8c5a3c` | anel padrão de facção |
+| | `latao` | `#b5a27a` | anel padrão de item |
 
 ### Semânticos
 ```css
@@ -165,46 +168,65 @@ Animação com propósito: dentro do mapa, só animações funcionais e curtas (
 ## Implementação do tema (só CSS)
 ```
 src/styles/
-├── palette.css    # primitivos
-├── tokens.css     # semânticos --wd-*
-├── textures.css   # couro, pergaminho, filetes
-└── styles.css     # entrada
+├── palette.css    # primitivos (fonte única dos hex)
+├── tokens.css     # semânticos --wd-* (cores, forma, movimento)
+├── fonts.css      # @font-face das fontes auto-hospedadas
+├── textures.css   # couro, pergaminho, vinheta; alto contraste
+└── styles.css     # entrada: Tailwind, @theme, base e componentes
 ```
-`styles.css`:
+`styles.css` (resumo):
 ```css
 @import "tailwindcss";
 @import "./palette.css";
 @import "./tokens.css";
+@import "./fonts.css";
 @import "./textures.css";
 
+/* Sem os padrões do Tailwind: só as cores, fontes e tamanhos do projeto. */
+@theme { --color-*: initial; --font-*: initial; --text-*: initial; }
+
+/* Utilitários apontam para palette.css, sem repetir hex. */
 @theme inline {
-  --color-couro-950: #1f140d;  --color-couro-900: #2b1c12;  --color-couro-800: #3a2618;
-  --color-couro-700: #4e3422;  --color-couro-600: #6b4a30;  --color-couro-500: #8a6444;
-  --color-pergaminho-50: #f4ead3; --color-pergaminho-100: #efe3c8; --color-pergaminho-200: #e3d2ac;
-  --color-pergaminho-300: #d2bb8b; --color-pergaminho-400: #c9b48e;
-  --color-ouro-200: #f0dca6; --color-ouro-300: #e8c97a; --color-ouro-400: #d9b25f;
-  --color-ouro-500: #b8903f; --color-ouro-700: #8a6a2a;
-  --color-lacre: #a33a2a; --color-lacre-claro: #e07a5f; --color-musgo: #7f9a62; --color-tinta: #5c7fa3;
+  --color-couro-900: var(--couro-900);   /* … todas as cores da paleta */
+  --radius-control: var(--wd-radius-control);
+  --radius-panel: var(--wd-radius-panel);
+  --shadow-panel: var(--wd-shadow-panel);
+}
+
+@theme {
   --font-inscription: 'Cinzel', serif;
-  --font-book: 'EB Garamond', Georgia, serif;
+  --font-book: 'EB Garamond', 'Georgia', serif;
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --radius-panel: 10px;
+  --text-xs: 0.75rem;   /* … escala 12 / 14 / 16 / 18 / 22 / 28 / 36 / 56 em text-xs … text-4xl */
 }
 
 @layer components {
-  .wd-panel {
-    @apply rounded-[--radius-panel] bg-couro-900/95 text-pergaminho-100 shadow-[0_8px_24px_rgb(15_9_5/0.45)];
+  .wd-panel {        /* couro com filete dourado duplo */
     border: 1px solid var(--wd-rule);
-    outline: 1px solid color-mix(in oklab, var(--ouro-500) 18%, transparent);
+    border-radius: var(--wd-radius-panel);
+    outline: 1px solid var(--wd-rule-inner);
     outline-offset: -4px;
+    background-color: color-mix(in oklab, var(--wd-surface) 95%, transparent);
     background-image: var(--wd-texture-leather);
+    color: var(--wd-text-on-surface);
+    box-shadow: var(--wd-shadow-panel);
   }
-  .wd-inscription { @apply font-inscription uppercase tracking-[0.08em]; }
-  .wd-page { @apply bg-pergaminho-50 text-couro-900; background-image: var(--wd-texture-parchment); }
-  .wd-focus { @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ouro-300; }
+  .wd-page {         /* pergaminho com fibras e vinheta */
+    background-color: var(--wd-page);
+    background-image: var(--wd-vignette-page), var(--wd-texture-parchment);
+    color: var(--wd-text-on-page);
+  }
+  .wd-inscription { font-family: var(--font-inscription); text-transform: uppercase; letter-spacing: 0.08em; }
+  .wd-focus:focus-visible { outline: 2px solid var(--wd-focus-ring); outline-offset: 2px; }
 }
 ```
+- A camada `base` aplica o fundo `--wd-bg-backdrop`, a seleção dourada e o anel de foco `:focus-visible` em todos os elementos.
+- **Alto contraste**: `@media (prefers-contrast: more)` ou `<html data-contrast="more">` (para a futura preferência do app) zeram as texturas e deixam os filetes sólidos.
+- **Texturas provisórias**: `src/assets/textures/*.svg` são ruído procedural próprio; a arte final (WebP/AVIF 512 px) substitui os arquivos sem mudar o CSS.
+- **Fontes**: `src/assets/fonts/<fonte>/` com o `.woff2` variável (subset latino) e o `OFL.txt`; atribuição em `THIRD_PARTY_NOTICES.md`.
+- **Contraste verificado**: `scripts/ci/check-contrast.mjs` (parte do `pnpm lint`) lê `palette.css` e falha se uma combinação da tabela de [acessibilidade de cor](#acessibilidade-de-cor) cair abaixo do mínimo.
+
 Comentários em CSS sempre com `/* */`. Os overlays do CDK precisam de `@angular/cdk/overlay-prebuilt.css` (ou o equivalente em CSS), importado antes das camadas do Tailwind.
 
 ## Movimento
