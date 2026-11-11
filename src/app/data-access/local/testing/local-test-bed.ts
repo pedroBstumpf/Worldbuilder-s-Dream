@@ -1,5 +1,6 @@
 // IndexedDB em memória: o jsdom não tem IndexedDB.
 import 'fake-indexeddb/auto';
+import type { Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { AuthService } from '@domain/ports';
 import { deleteDB } from 'idb';
@@ -8,13 +9,17 @@ import { provideLocalDataAccess } from '../provide-local-data-access';
 
 /**
  * Prepara o TestBed com o modo local num banco descartável e o usuário de demonstração
- * já logado. Chame o `teardown` devolvido no `afterEach` (testes criam e descartam os
+ * já logado; `providers` acrescenta o que o teste precisa (stores, por exemplo). Chame o `teardown` devolvido no `afterEach` (testes criam e descartam os
  * próprios dados, AGENTS.md).
  */
-export async function setUpLocalTestBed(): Promise<{ teardown: () => Promise<void> }> {
+export async function setUpLocalTestBed(
+  providers: Provider[] = [],
+): Promise<{ teardown: () => Promise<void> }> {
   localStorage.clear();
   const dbName = `test-${crypto.randomUUID()}`;
-  TestBed.configureTestingModule({ providers: [provideLocalDataAccess({ dbName })] });
+  TestBed.configureTestingModule({
+    providers: [provideLocalDataAccess({ dbName }), ...providers],
+  });
   await TestBed.inject(AuthService).signInWithGoogle();
   return {
     teardown: async () => {
