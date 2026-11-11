@@ -41,7 +41,7 @@ flowchart LR
   C --> D[Você: revisar no GitHub Desktop<br/>e fazer push]
   D --> E[GitHub: abrir PR<br/>CI roda]
   E --> F[Merge com 'Rebase and merge'<br/>branch apagada]
-  F --> G[Marcar a tarefa como concluída<br/>/clear no Claude]
+  F --> G[/clear no Claude<br/>próxima tarefa]
 ```
 
 1. Em uma **nova conversa** do Claude Code, peça: *"Faça a tarefa F0-03 do docs/12"*.
@@ -53,9 +53,11 @@ flowchart LR
 4. Ao terminar, o Claude lista os commits e o que testar à mão. **Ele não faz push nem merge.**
 5. Você revisa no GitHub Desktop, faz **push** e clica em **Create Pull Request**.
 6. Com o CI verde, faça o merge com **Rebase and merge** (mantém os commits numerados no histórico). A branch é apagada automaticamente.
-7. Marque a tarefa como concluída na tabela deste documento (`[x]`) e rode `/clear` no Claude antes da próxima.
+7. Rode `/clear` no Claude e peça a próxima tarefa. (O próprio Claude já marcou a tarefa com `[x]` no último commit da branch.)
 
-**Uma branch por vez.** Toda branch nasce do `main` atualizado e é integrada antes da próxima começar. Isso mantém o histórico linear e a numeração dos commits contínua.
+**Uma branch por tarefa, em sequência.** O ideal é fazer o merge antes de começar a próxima. **Se o merge ainda não aconteceu**, não precisa esperar: o Claude cria a nova branch a partir da anterior (em vez do `main`), para a numeração continuar, e avisa. Nesse caso, faça os merges **na ordem** das tarefas.
+
+**Se o CI falhar por rede** (por exemplo, `apt` sem conseguir baixar pacotes no job de e2e), não é erro do código: no PR, abra o check e use *Re-run failed jobs*.
 
 ## Nome das branches
 ```
@@ -198,31 +200,25 @@ Cada linha é **uma branch**. A coluna "Ler" diz quais documentos o Claude preci
 | [x] | F0-05 | `feat/f0-05-domain-core` | `domain/`: modelos (iguais ao `docs/07`), portas, calendário e interpolação com testes | 06, 07 |
 | [x] | F0-06 | `feat/f0-06-local-data` | `data-access/local` (IndexedDB), `FakeAuthService`, `provideLocalDataAccess`, selo de modo demonstração | 04, 10 |
 | [x] | F0-07 | `spike/f0-07-book-poc` | Prova de conceito: capa → abertura → virada de página; medir fps; registrar a decisão no ADR-0011 | 05, ADR-0011 |
-| [ ] | F0-08 | `spike/f0-08-map-poc` | Prova de conceito: PixiJS v8 + pixi-viewport, 500 tokens, imagem 8192 px; medir fps | 06, ADR-0004 |
-| [ ] | F0-09 | `feat/f0-09-book-shell` | `BookShell`, capa (login simulado), biblioteca vazia, criar mundo → shell do mapa. **Marco da Fase 0** | 04, 05 |
+| [ ] | F0-08 | `feat/f0-08-book-shell` | `BookShell`, capa (login simulado), biblioteca vazia, criar mundo → shell do mapa, partindo da prova de conceito `/dev/livro`. **Marco da Fase 0** | 04, 05, ADR-0011 |
 
 ### Fase 1 — Front completo em modo local
 | ✓ | ID | Branch | Entrega | Ler |
 |---|----|--------|---------|-----|
-| [ ] | F1-01 | `feat/f1-01-map-import` | Área de importação (arrastar/soltar, colar, escolher arquivo), worker WebP, redução a 8192 px, criar mapa | 05, 06 §0 |
-| [ ] | F1-02 | `feat/f1-02-map-engine` | Fachada `MapEngine`, camadas, pan/zoom, enquadrar, câmera salva | 06 §1 |
+| [ ] | F1-01 | `feat/f1-01-map-engine` | Fachada `MapEngine` (PixiJS v8 + pixi-viewport), camadas, pan/zoom, enquadrar, câmera salva; medir fps com 500 tokens e imagem de 8192 px e registrar no ADR-0004 | 06 §1, ADR-0004 |
+| [ ] | F1-02 | `feat/f1-02-map-import` | Área de importação (arrastar/soltar, colar, escolher arquivo), worker WebP, redução a 8192 px, criar mapa | 05, 06 §0 |
 | [ ] | F1-03 | `feat/f1-03-map-scale-tree` | Escala do mapa, árvore de mapas, seletor no título, links entre mapas | 06 §1, §8 |
 | [ ] | F1-04 | `feat/f1-04-vtt-shell` | Barras flutuantes (recolher, redimensionar, preferências), atalhos | 04, 05 |
 | [ ] | F1-05 | `feat/f1-05-entities` | CRUD de entidades, ficha com Tiptap, retratos, apelidos, menções | 04, 07 |
 | [ ] | F1-06 | `feat/f1-06-explorer` | Painel Explorar (abas, lista virtual, arrastável), busca com MiniSearch, paleta `Ctrl+K` | 04, 05 |
-| [ ] | F1-07 | `feat/f1-07-calendar` | Editor de calendário, `TimelineStore`, formatação de datas | 06 §2 |
-| [ ] | F1-08 | `feat/f1-08-timeline-bar` | Linha do tempo (SVG, eras, cursor acessível, zoom, play, velocidade, `?t=`) | 05, 06 §7 |
-| [ ] | F1-09 | `feat/f1-09-events` | CRUD de eventos, marcadores na linha do tempo e no mapa, popover | 05, 06 §4 |
-| [ ] | F1-10 | `feat/f1-10-tokens-drag-keyframes` | Arrastar do Explorar para o mapa, tokens, keyframes, interpolação, lista acessível | 06 §3, §6 |
-| [ ] | F1-11 | `feat/f1-11-history-trails` | Desfazer/refazer (`HistoryStore`), rastro de movimento | 04, 06 §3 |
-| [ ] | F1-12 | `feat/f1-12-tools-pin-ruler` | Marcar ponto e régua | 06 §5 |
-| [ ] | F1-13 | `feat/f1-13-tools-draw` | Pincel, região, rótulo, validade temporal, camadas | 06 §5 |
-| [ ] | F1-14 | `feat/f1-14-book-transitions` | Transições completas/curtas/desligadas, volta à biblioteca, preferências | 04, 05 |
-| [ ] | F1-15 | `feat/f1-15-motion-components` | 5 componentes animados portados (com atribuições) | 05, ADR-0003 |
-| [ ] | F1-16 | `feat/f1-16-library-actions` | Renomear, duplicar, arquivar, lixeira | 01, 05 |
-| [ ] | F1-17 | `feat/f1-17-world-export-import` | Exportar/importar mundo em JSON (formato do `export-world`) | 02, 07 |
-| [ ] | F1-18 | `feat/f1-18-gdocs-renderer` | Conversor Google Doc → Tiptap, nomes e datas como links, com fixtures | 08 |
-| [ ] | F1-19 | `test/f1-19-demo-e2e` | Jornadas e2e 1 e 2, axe, medição dos RNF. **Marco: demo para o cliente** (tag `v0.1.0-demo`) | 01, 03 |
+| [ ] | F1-07 | `feat/f1-07-calendar-timeline` | Editor de calendário, `TimelineStore`, formatação de datas; linha do tempo (SVG, eras, cursor acessível, zoom, play, velocidade, `?t=`) | 05, 06 §2, §7 |
+| [ ] | F1-08 | `feat/f1-08-events` | CRUD de eventos, marcadores na linha do tempo e no mapa, popover | 05, 06 §4 |
+| [ ] | F1-09 | `feat/f1-09-tokens-drag-keyframes` | Arrastar do Explorar para o mapa, tokens, keyframes, interpolação, lista acessível | 06 §3, §6 |
+| [ ] | F1-10 | `feat/f1-10-history-trails` | Desfazer/refazer (`HistoryStore`), rastro de movimento | 04, 06 §3 |
+| [ ] | F1-11 | `feat/f1-11-map-tools` | Marcar ponto, régua, pincel, região, rótulo, validade temporal, camadas | 06 §5 |
+| [ ] | F1-12 | `feat/f1-12-book-transitions` | Transições completas/curtas/desligadas (com o zoom biblioteca → mapa), volta à biblioteca, preferências, detecção de fps baixo | 04, 05, ADR-0011 |
+| [ ] | F1-13 | `feat/f1-13-library-data` | Renomear, duplicar, arquivar, lixeira; exportar/importar mundo em JSON (formato do `export-world`) | 01, 05, 07 |
+| [ ] | F1-14 | `test/f1-14-demo-e2e` | Jornadas e2e 1 e 2, axe, medição dos RNF. **Marco: demo para o cliente** (tag `v0.1.0-demo`) | 01, 03 |
 
 ### Fase 2 — Back-end e banco
 | ✓ | ID | Branch | Entrega | Ler |
@@ -240,7 +236,7 @@ Cada linha é **uma branch**. A coluna "Ler" diz quais documentos o Claude preci
 |---|----|--------|---------|-----|
 | [ ] | F3-01 | `feat/f3-01-google-token` | `google-connect`, `google-token`, `google-disconnect` | 08, 09 |
 | [ ] | F3-02 | `feat/f3-02-picker-links` | Picker e vínculos (`external_links`) | 08 |
-| [ ] | F3-03 | `feat/f3-03-docs-as-text` | Doc como texto principal, cache por revisão, "Editar no Google Docs" | 08 |
+| [ ] | F3-03 | `feat/f3-03-docs-as-text` | Conversor Google Doc → Tiptap (com fixtures; nomes e datas como links), Doc como texto principal, cache por revisão, "Editar no Google Docs" | 08 |
 | [ ] | F3-04 | `feat/f3-04-history-tab` | Aba História, criar Doc a partir da ficha, aparições | 05, 08 |
 | [ ] | F3-05 | `feat/f3-05-drive-images` | Imagens no Drive (opção) | 08, ADR-0007 |
 | [ ] | F3-06 | `feat/f3-06-invites` | Convites (Resend, capa em modo convite, Configurações › Pessoas) | 02, 04, 05, 07 |
@@ -251,9 +247,10 @@ Cada linha é **uma branch**. A coluna "Ler" diz quais documentos o Claude preci
 | ✓ | ID | Branch | Entrega | Ler |
 |---|----|--------|---------|-----|
 | [ ] | F4-01 | `feat/f4-01-cover-art` | Arte final da capa em camadas | 05 |
-| [ ] | F4-02 | `refactor/f4-02-a11y-perf` | Revisão de acessibilidade e desempenho | 01, 04 |
-| [ ] | F4-03 | `feat/f4-03-delete-account` | Excluir conta | 02, 09 |
-| [ ] | F4-04 | `chore/f4-04-release` | Checklist de release, tag `v1.0.0` | 09 |
+| [ ] | F4-02 | `feat/f4-02-motion-components` | 5 componentes animados portados (com atribuições) | 05, ADR-0003 |
+| [ ] | F4-03 | `refactor/f4-03-a11y-perf` | Revisão de acessibilidade e desempenho | 01, 04 |
+| [ ] | F4-04 | `feat/f4-04-delete-account` | Excluir conta | 02, 09 |
+| [ ] | F4-05 | `chore/f4-05-release` | Checklist de release, tag `v1.0.0` | 09 |
 
 Tarefas novas entram nesta tabela (com o próximo id da fase) antes de começar.
 

@@ -11,6 +11,7 @@
 ## Git
 - Crie a branch a partir do `main` atualizado:
   `git switch main && git pull --ff-only && git switch -c <tipo>/<id>-<descricao>` (nome exato da tabela da tarefa).
+  Se a branch da tarefa anterior ainda não entrou no `main` (`git log main..<branch anterior>` não vazio), crie a nova a partir dela e avise que os merges devem seguir a ordem.
 - Commits pequenos, um assunto cada; rode `pnpm lint && pnpm test` antes de cada commit.
 - Mensagem: `tipo(escopo): descrição` em inglês, imperativo, minúsculas, até 72 caracteres; corpo em tópicos; rodapé `Refs: <ID>`.
 - **Não escreva o número do commit**: o hook `prepare-commit-msg` adiciona (`0001`, `0002`, …).
