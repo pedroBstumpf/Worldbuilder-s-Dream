@@ -56,7 +56,8 @@
                 "ignore": ["**/.gitkeep"]
               }
             ],
-            "styles": ["src/styles/styles.css"]
+            "styles": ["src/styles/styles.css"],
+            "allowedCommonJsDependencies": ["@xmldom/xmldom"]
           },
           "configurations": {
             "production": {
