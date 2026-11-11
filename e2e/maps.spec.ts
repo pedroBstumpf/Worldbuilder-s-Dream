@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { BOOK_STRINGS } from '../src/app/core/strings/book.strings';
 import { MAP_STRINGS } from '../src/app/core/strings/map.strings';
+import { WORLD_STRINGS } from '../src/app/core/strings/world.strings';
 import { makePng } from './support/png';
 
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
@@ -71,6 +72,12 @@ test.describe('maps: import, tree, scale and links', () => {
 
     await page.reload();
     await expect(canvas(page, 'valmora mapa antigo')).toBeVisible();
+
+    // Volta ao livro (o motor é destruído) e a miniatura vira a capa do mundo.
+    await page.getByRole('button', { name: WORLD_STRINGS.backToLibrary }).click();
+    await expect(page).toHaveURL('/biblioteca');
+    await expect(page.getByRole('heading', { level: 1, name: library.heading })).toBeFocused();
+    await expect(page.locator('wd-world-frontispiece img').first()).toBeVisible();
   });
 
   test('rejects files that are not images', async ({ page }) => {
