@@ -195,7 +195,7 @@ Cada linha é **uma branch**. A coluna "Ler" diz quais documentos o Claude preci
 | [x] | F0-02 | `ci/f0-02-ci-workflow` | Workflow de CI (lint, typecheck, testes, build, budgets, guarda de `dataSource`, e2e + axe), template de PR. Sem demo publicada: as prévias ao cliente são vídeos de tela | 03, 09, 12 |
 | [x] | F0-03 | `feat/f0-03-design-tokens` | Paleta, tokens `--wd-*`, `@theme` do Tailwind, fontes auto-hospedadas, texturas, classes `.wd-panel`/`.wd-page` | 05 |
 | [x] | F0-04 | `feat/f0-04-ui-base` | `shared/ui`: botão, ícone-botão, tooltip, diálogo, toast; página interna `/dev` | 04, 05 |
-| [ ] | F0-05 | `feat/f0-05-domain-core` | `domain/`: modelos (iguais ao `docs/07`), portas, calendário e interpolação com testes | 06, 07 |
+| [x] | F0-05 | `feat/f0-05-domain-core` | `domain/`: modelos (iguais ao `docs/07`), portas, calendário e interpolação com testes | 06, 07 |
 | [ ] | F0-06 | `feat/f0-06-local-data` | `data-access/local` (IndexedDB), `FakeAuthService`, `provideLocalDataAccess`, selo de modo demonstração | 04, 10 |
 | [ ] | F0-07 | `spike/f0-07-book-poc` | Prova de conceito: capa → abertura → virada de página; medir fps; registrar a decisão no ADR-0011 | 05, ADR-0011 |
 | [ ] | F0-08 | `spike/f0-08-map-poc` | Prova de conceito: PixiJS v8 + pixi-viewport, 500 tokens, imagem 8192 px; medir fps | 06, ADR-0004 |
