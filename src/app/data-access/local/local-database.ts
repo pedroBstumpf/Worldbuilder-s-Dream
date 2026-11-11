@@ -2,6 +2,7 @@ import { inject, Injectable, InjectionToken } from '@angular/core';
 import type {
   Asset,
   Entity,
+  EntityMention,
   MapAnnotation,
   MapLink,
   MapToken,
@@ -73,13 +74,18 @@ export interface LocalSchema extends DBSchema {
   tokenKeyframes: { key: Uuid; value: TokenKeyframe; indexes: { byTokenTick: [Uuid, Tick] } };
   mapAnnotations: { key: Uuid; value: MapAnnotation; indexes: { byMap: Uuid } };
   profiles: { key: Uuid; value: Profile };
+  entityMentions: {
+    key: [string, Uuid, Uuid];
+    value: EntityMention;
+    indexes: { bySource: [string, Uuid]; byTarget: Uuid };
+  };
 }
 
 /**
  * Versão do schema local. Nova tabela ou índice: incremente e acrescente um passo em
  * `upgrade` (nunca altere um passo antigo; os navegadores já rodaram).
  */
-export const LOCAL_DB_VERSION = 2;
+export const LOCAL_DB_VERSION = 3;
 
 export function openLocalDatabase(name: string): Promise<IDBPDatabase<LocalSchema>> {
   return openDB<LocalSchema>(name, LOCAL_DB_VERSION, {
@@ -109,6 +115,14 @@ export function openLocalDatabase(name: string): Promise<IDBPDatabase<LocalSchem
       }
       if (oldVersion < 2) {
         db.createObjectStore('profiles', { keyPath: 'id' });
+      }
+      if (oldVersion < 3) {
+        // Chave primária de `entity_mentions`: (source_kind, source_id, target_entity_id).
+        const mentions = db.createObjectStore('entityMentions', {
+          keyPath: ['sourceKind', 'sourceId', 'targetEntityId'],
+        });
+        mentions.createIndex('bySource', ['sourceKind', 'sourceId']);
+        mentions.createIndex('byTarget', 'targetEntityId');
       }
     },
   });
