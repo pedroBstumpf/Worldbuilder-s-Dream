@@ -6,6 +6,7 @@ import {
   EntityRepository,
   EventRepository,
   MapRepository,
+  MentionRepository,
   ProfileRepository,
   WorldRepository,
 } from '@domain/ports';
@@ -29,6 +30,7 @@ describe('provideDataAccess', () => {
       MapRepository,
       EntityRepository,
       EventRepository,
+      MentionRepository,
       AssetRepository,
       ProfileRepository,
     ]) {

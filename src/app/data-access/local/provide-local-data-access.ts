@@ -6,6 +6,7 @@ import {
   EntityRepository,
   EventRepository,
   MapRepository,
+  MentionRepository,
   ProfileRepository,
   WorldRepository,
 } from '@domain/ports';
@@ -20,6 +21,7 @@ import { LocalAssetRepository } from './local-asset.repository';
 import { LocalEntityRepository } from './local-entity.repository';
 import { LocalEventRepository } from './local-event.repository';
 import { LocalMapRepository } from './local-map.repository';
+import { LocalMentionRepository } from './local-mention.repository';
 import { LocalProfileRepository } from './local-profile.repository';
 import { LocalWorldRepository } from './local-world.repository';
 
@@ -39,6 +41,7 @@ export function provideLocalDataAccess(
     { provide: MapRepository, useClass: LocalMapRepository },
     { provide: EntityRepository, useClass: LocalEntityRepository },
     { provide: EventRepository, useClass: LocalEventRepository },
+    { provide: MentionRepository, useClass: LocalMentionRepository },
     { provide: AssetRepository, useClass: LocalAssetRepository },
     { provide: ProfileRepository, useClass: LocalProfileRepository },
   ]);
