@@ -6,6 +6,7 @@ import {
   EntityRepository,
   EventRepository,
   MapRepository,
+  ProfileRepository,
   WorldRepository,
 } from '@domain/ports';
 import { FakeAuthService } from './fake-auth.service';
@@ -19,6 +20,7 @@ import { LocalAssetRepository } from './local-asset.repository';
 import { LocalEntityRepository } from './local-entity.repository';
 import { LocalEventRepository } from './local-event.repository';
 import { LocalMapRepository } from './local-map.repository';
+import { LocalProfileRepository } from './local-profile.repository';
 import { LocalWorldRepository } from './local-world.repository';
 
 /**
@@ -38,5 +40,6 @@ export function provideLocalDataAccess(
     { provide: EntityRepository, useClass: LocalEntityRepository },
     { provide: EventRepository, useClass: LocalEventRepository },
     { provide: AssetRepository, useClass: LocalAssetRepository },
+    { provide: ProfileRepository, useClass: LocalProfileRepository },
   ]);
 }

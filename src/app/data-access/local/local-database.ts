@@ -5,6 +5,7 @@ import type {
   MapAnnotation,
   MapLink,
   MapToken,
+  Profile,
   Tick,
   TokenKeyframe,
   Uuid,
@@ -71,13 +72,14 @@ export interface LocalSchema extends DBSchema {
   };
   tokenKeyframes: { key: Uuid; value: TokenKeyframe; indexes: { byTokenTick: [Uuid, Tick] } };
   mapAnnotations: { key: Uuid; value: MapAnnotation; indexes: { byMap: Uuid } };
+  profiles: { key: Uuid; value: Profile };
 }
 
 /**
  * Versão do schema local. Nova tabela ou índice: incremente e acrescente um passo em
  * `upgrade` (nunca altere um passo antigo; os navegadores já rodaram).
  */
-export const LOCAL_DB_VERSION = 1;
+export const LOCAL_DB_VERSION = 2;
 
 export function openLocalDatabase(name: string): Promise<IDBPDatabase<LocalSchema>> {
   return openDB<LocalSchema>(name, LOCAL_DB_VERSION, {
@@ -104,6 +106,9 @@ export function openLocalDatabase(name: string): Promise<IDBPDatabase<LocalSchem
           { unique: true },
         );
         db.createObjectStore('mapAnnotations', { keyPath: 'id' }).createIndex('byMap', 'mapId');
+      }
+      if (oldVersion < 2) {
+        db.createObjectStore('profiles', { keyPath: 'id' });
       }
     },
   });
