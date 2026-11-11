@@ -12,7 +12,8 @@
     "lint": "ng lint && prettier --check . && stylelint \"src/**/*.css\" && node scripts/ci/check-contrast.mjs",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.spec.json --noEmit",
     "format": "prettier --write . && stylelint \"src/**/*.css\" --fix",
-    "prepare": "lefthook install"
+    "prepare": "lefthook install",
+    "perf:book": "node scripts/perf/book-poc-fps.mjs"
   },
   "private": true,
   "packageManager": "pnpm@12.18.0",
