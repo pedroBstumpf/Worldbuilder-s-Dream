@@ -10,6 +10,7 @@
     "test:watch": "ng test",
     "e2e": "playwright test",
     "lint": "ng lint && prettier --check . && stylelint \"src/**/*.css\"",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.spec.json --noEmit",
     "format": "prettier --write . && stylelint \"src/**/*.css\" --fix",
     "prepare": "lefthook install"
   },
