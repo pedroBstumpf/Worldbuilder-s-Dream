@@ -2,7 +2,7 @@ import { EnvironmentInjector, Injector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { setUpLocalTestBed } from '@data/local/testing/local-test-bed';
 import { DEFAULT_CALENDAR } from '@domain/calendar';
-import { WorldRepository } from '@domain/ports';
+import { AssetRepository, WorldRepository } from '@domain/ports';
 import { LibraryStore } from './library.store';
 
 describe('LibraryStore', () => {
@@ -61,5 +61,30 @@ describe('LibraryStore', () => {
 
     expect(store.worlds().map((w) => w.id)).toEqual([old.id, recent.id]);
     expect(store.selected()?.id).toBe(old.id);
+  });
+
+  it('resolves the map thumbnail of worlds that have a cover', async () => {
+    const original = URL.createObjectURL;
+    URL.createObjectURL = () => 'blob:test/capa';
+    try {
+      const repo = TestBed.inject(WorldRepository);
+      const world = await repo.create(
+        { id: crypto.randomUUID(), name: 'Com capa' },
+        DEFAULT_CALENDAR,
+      );
+      await repo.create({ id: crypto.randomUUID(), name: 'Sem capa' }, DEFAULT_CALENDAR);
+      const cover = await TestBed.inject(AssetRepository).upload(
+        { id: crypto.randomUUID(), worldId: world.id, mimeType: 'image/webp' },
+        new Blob([new Uint8Array([1])], { type: 'image/webp' }),
+      );
+      await repo.update(world.id, { coverAssetId: cover.id }, world.version);
+      const store = createStore();
+
+      await store.load();
+
+      expect(store.coverUrls()).toEqual({ [world.id]: 'blob:test/capa' });
+    } finally {
+      URL.createObjectURL = original;
+    }
   });
 });

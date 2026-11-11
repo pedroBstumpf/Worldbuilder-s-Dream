@@ -82,6 +82,11 @@ const SKIP_KEYS = new Set(['Escape', 'Enter']);
 export default class BookShellComponent {
   protected readonly text = BOOK_STRINGS;
   protected readonly library = inject(LibraryStore);
+  /** Miniatura do mapa do mundo escolhido (frontispício e página do mapa). */
+  protected readonly selectedCover = computed(() => {
+    const world = this.library.selected();
+    return world ? (this.library.coverUrls()[world.id] ?? null) : null;
+  });
   protected readonly session = inject(SessionStore);
   protected readonly stripIndexes = Array.from({ length: STRIPS }, (_, i) => i);
 

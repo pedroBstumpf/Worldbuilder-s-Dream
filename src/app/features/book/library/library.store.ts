@@ -2,7 +2,7 @@ import { computed, inject } from '@angular/core';
 // Direto do arquivo, não do índice: o índice traz o Zod (validação) para o chunk.
 import { DEFAULT_CALENDAR } from '@domain/calendar/default-calendar';
 import type { Uuid, World } from '@domain/models';
-import { WorldRepository } from '@domain/ports';
+import { AssetRepository, WorldRepository } from '@domain/ports';
 import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
 
 export type LibraryStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -16,6 +16,8 @@ interface LibraryState {
   readonly worlds: readonly World[];
   readonly status: LibraryStatus;
   readonly selectedId: Uuid | null;
+  /** URL da miniatura do mapa (capa) de cada mundo que tem uma. */
+  readonly coverUrls: Readonly<Record<Uuid, string>>;
 }
 
 /** Mais recente primeiro: o último mundo editado abre o sumário. */
@@ -28,12 +30,12 @@ function byLastEdit(a: World, b: World): number {
  * mundos só pela porta `WorldRepository`. Arquivados ficam fora do sumário.
  */
 export const LibraryStore = signalStore(
-  withState<LibraryState>({ worlds: [], status: 'idle', selectedId: null }),
+  withState<LibraryState>({ worlds: [], status: 'idle', selectedId: null, coverUrls: {} }),
   withComputed(({ worlds, selectedId }) => ({
     /** Mundo do frontispício: o escolhido ou, sem escolha, o primeiro do sumário. */
     selected: computed(() => worlds().find((w) => w.id === selectedId()) ?? worlds()[0] ?? null),
   })),
-  withMethods((store, repo = inject(WorldRepository)) => ({
+  withMethods((store, repo = inject(WorldRepository), assets = inject(AssetRepository)) => ({
     async load(): Promise<void> {
       patchState(store, { status: 'loading' });
       try {
@@ -41,7 +43,20 @@ export const LibraryStore = signalStore(
         patchState(store, { worlds, status: 'ready' });
       } catch {
         patchState(store, { status: 'error' });
+        return;
       }
+      // Miniaturas depois do sumário: uma capa que falha só fica sem imagem.
+      const entries = await Promise.all(
+        store.worlds().map(async (world) => {
+          if (!world.coverAssetId) return null;
+          const asset = await assets.get(world.coverAssetId).catch(() => null);
+          const url = asset ? await assets.resolveUrl(asset).catch(() => null) : null;
+          return url ? ([world.id, url] as const) : null;
+        }),
+      );
+      patchState(store, {
+        coverUrls: Object.fromEntries(entries.filter((entry) => entry !== null)),
+      });
     },
     select(id: Uuid): void {
       patchState(store, { selectedId: id });
