@@ -1,5 +1,11 @@
 import { makeEnvironmentProviders, type EnvironmentProviders } from '@angular/core';
-import { AuthService, EntityRepository, EventRepository, WorldRepository } from '@domain/ports';
+import {
+  AuthService,
+  EntityRepository,
+  EventRepository,
+  MapRepository,
+  WorldRepository,
+} from '@domain/ports';
 import { FakeAuthService } from './fake-auth.service';
 import {
   DEFAULT_LOCAL_DATA_OPTIONS,
@@ -9,6 +15,7 @@ import {
 } from './local-database';
 import { LocalEntityRepository } from './local-entity.repository';
 import { LocalEventRepository } from './local-event.repository';
+import { LocalMapRepository } from './local-map.repository';
 import { LocalWorldRepository } from './local-world.repository';
 
 /**
@@ -23,6 +30,7 @@ export function provideLocalDataAccess(
     LocalDatabase,
     { provide: AuthService, useClass: FakeAuthService },
     { provide: WorldRepository, useClass: LocalWorldRepository },
+    { provide: MapRepository, useClass: LocalMapRepository },
     { provide: EntityRepository, useClass: LocalEntityRepository },
     { provide: EventRepository, useClass: LocalEventRepository },
   ]);
