@@ -319,7 +319,7 @@ Se os dados ainda não chegaram, a página mostra a miniatura com a rosa dos ven
 - Ao fim de cada transição o foco vai para o título da nova tela e uma região `aria-live` anuncia "Biblioteca de mundos" ou "Mapa: <nome>".
 - `will-change` só durante a animação e só na propriedade animada (`will-change: opacity` achata o `preserve-3d` do livro); se o primeiro quadro demorar demais (fps baixo), usa-se automaticamente a versão curta até o fim da sessão.
 - **Versão curta**: capa em 500 ms sem o fecho, virada rígida (um plano) em 450 ms, zoom em 350 ms. **Completas**: fecho, capa em 1200 ms, virada curvada em 900 ms, zoom em 700 ms.
-- **Mundo sem mapa**: a página do mapa e a tela do mundo mostram a folha de pergaminho com borda tracejada e a rosa dos ventos, até a área de importação existir (M1).
+- **Mundo sem mapa**: a página do mapa mostra a folha de pergaminho com borda tracejada e a rosa dos ventos, e a tela do mundo mostra a área de importação. Com mapa, a página mostra a miniatura do mapa.
 
 ## Componentes animados: Skiper UI + Magic UI
 | Catálogo | Stack original | Licença (gratuitos) |
@@ -355,7 +355,7 @@ Todo componente portado: fica em `shared/motion/`, respeita movimento reduzido e
 - **Visual**: grande folha de pergaminho emoldurada no centro do fundo `couro-950`, com **borda tracejada dourada** (`ouro-500`) e a rosa dos ventos em traço fino. Texto em EB Garamond: "**Arraste a imagem do seu mapa para cá**" e, menor, "PNG, JPG ou WebP". Botões **Escolher arquivo** (primário) e **Do Google Drive** (secundário).
 - **Arrastando um arquivo sobre a janela**: a moldura acende (borda contínua `ouro-300` + `wd-border-beam`), o fundo escurece levemente e o texto muda para "**Solte para criar o mapa**". Arquivo que não é imagem: moldura em `lacre-claro` e "Este arquivo não é uma imagem".
 - **Ao soltar**: a imagem aparece na hora, a folha "assenta" na mesa (escala 1,02 → 1, 200 ms), as barras entram e um anel de progresso no canto mostra o envio. O nome do mapa vem do nome do arquivo (editável no título). Um aviso discreto oferece "**Definir escala**".
-- **Com mapa existente**: soltar uma imagem abre um menu pequeno, "Criar novo mapa" ou "Substituir a imagem deste mapa". `Ctrl/Cmd+V` faz o mesmo.
+- **Com mapa existente**: soltar uma imagem abre um diálogo pequeno, "Criar novo mapa" (fica dentro do atual na árvore) ou "Substituir a imagem deste mapa"; sobre o mapa, uma moldura dourada indica onde soltar. `Ctrl/Cmd+V` faz o mesmo. "Do Google Drive" fica desativado até a Fase 2.
 - **Acessibilidade**: "Escolher arquivo" é o caminho principal por teclado e leitor de tela; a área tem `aria-describedby` com as instruções.
 
 ## Responsividade

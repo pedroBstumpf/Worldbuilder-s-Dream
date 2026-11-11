@@ -117,9 +117,10 @@ Acompanhar o **Angular Aria** (componentes acessíveis sem estilo do próprio An
 ## Estado
 | Store | Escopo | Conteúdo |
 |-------|--------|----------|
-| `SessionStore` | raiz | usuário (`core/auth`, NgRx SignalStore sobre a porta `AuthService`); depois, perfil e preferências (barras, tema) |
-| `WorldStore` | rota `w/:worldId` | mundo, calendário, entidades, eventos, mapas, membros, Docs vinculados |
-| `MapStore` | rota `w/:worldId` | cena do mapa ativo (tokens, keyframes, anotações), seleção |
+| `SessionStore` | raiz | usuário (`core/auth`, NgRx SignalStore sobre a porta `AuthService`) |
+| `UiPrefsStore` | raiz | `profiles.ui_prefs` pela porta `ProfileRepository` (`core/prefs`): barras e câmera por mapa; muda na hora e grava em lote depois de 800 ms |
+| `WorldStore` | rota `w/:worldId` | mundo, mapas (árvore, mapa ativo, importação e envio em segundo plano); depois calendário, entidades, eventos, membros, Docs |
+| `MapStore` | rota `w/:worldId` | cena do mapa ativo (links; depois tokens, keyframes, anotações), seleção |
 | `TimelineStore` | rota `w/:worldId` | `currentTick`, faixa visível, zoom, `isPlaying`, velocidade |
 | `ToolStore` | rota `w/:worldId` | ferramenta ativa e opções |
 | `HistoryStore` | rota `w/:worldId` | desfazer/refazer (padrão Command) |
@@ -144,13 +145,15 @@ Regras:
 ## Layout VTT (`features/world/shell`)
 - `<wd-map-canvas>` em `position: fixed; inset: 0`.
 - Barras como overlays com `pointer-events` só nelas; o resto passa eventos ao canvas.
-- Larguras redimensionáveis (CDK Drag no eixo X), salvas em `profiles.ui_prefs`.
+- Larguras redimensionáveis (CDK Drag no eixo X; setas na alça, que é um `separator`), salvas em `profiles.ui_prefs`.
+- O motor recebe a área coberta pelas barras (`setInsets`) para enquadrar o mapa na parte livre.
+- No M1, a barra direita é só a moldura do Explorar com o estado vazio; abas e lista chegam no M2.
 - Recolher/expandir anima `transform`, nunca `width`.
 - **Mundo sem mapa**: o canvas dá lugar à área de importação ([`docs/06` §0](06-mapa-e-tempo.md#0-importar-o-mapa-arrastar-e-soltar)).
 - A ficha da entidade abre como painel deslizante sobre o Explorar (desktop) ou folha inferior (tablet).
 
 ### Atalhos
-Registrados num `ShortcutService` com escopo, desativados quando um campo de texto tem foco.
+Registrados num `ShortcutService` (`core/shortcuts`) com escopo, desativados quando um campo de texto tem foco e dentro de diálogos. `when` limita um atalho a um estado (Enter e Esc só durante o desenho; Espaço não rouba o clique de botões).
 
 | Tecla | Ação |
 |-------|------|
@@ -168,6 +171,8 @@ Registrados num `ShortcutService` com escopo, desativados quando um campo de tex
 | `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z` | Desfazer / refazer |
 | `Ctrl/Cmd+K` | Busca e paleta de comandos |
 | `Ctrl/Cmd+V` (com imagem) | Importar imagem como mapa |
+| `Enter` / `Esc` (desenhando) | Fechar o polígono do link / cancelar a ferramenta |
+| Setas, `+`, `−`, `0` (foco no mapa) | Mover, aproximar, afastar, enquadrar |
 | `Del` | Remover keyframe ou token (com confirmação) |
 | `Esc` | Pular animação do livro; cancelar ferramenta |
 
@@ -192,7 +197,7 @@ Registrados num `ShortcutService` com escopo, desativados quando um campo de tex
 
 ## Acessibilidade
 - Componentes próprios seguem os padrões WAI-ARIA, com o CDK cuidando de foco, teclado e anúncios.
-- O canvas expõe uma **lista acessível espelhada** dos tokens visíveis no instante atual.
+- O canvas expõe uma **lista acessível espelhada** dos tokens visíveis no instante atual (M4). Já no M1, os links do mapa viram botões ("Abrir mapa: …") que aparecem ao receber foco.
 - `prefers-reduced-motion` respeitado em todas as animações.
 - Contraste AA verificado e foco sempre visível (`docs/05`).
 
