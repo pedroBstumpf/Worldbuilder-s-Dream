@@ -39,6 +39,12 @@ erDiagram
 - Textos ricos: `content jsonb` (Tiptap) + `content_text text` (derivado no cliente e validado por tamanho) + `search tsvector` (coluna gerada).
 - Busca: dicionário `simple` + extensão `unaccent` (nomes inventados não se beneficiam de stemming do português).
 
+## Modelos no front (`domain/models`)
+- Um tipo por tabela, com os mesmos campos em **camelCase** (`world_id` → `worldId`); o adaptador Supabase converte linha ⇄ modelo. `maps` vira `WorldMap` e `events` vira `WorldEvent`, para não colidir com `Map` e `Event`.
+- Ficam de fora as colunas geradas pelo banco (`search`) e o schema `private`.
+- `timestamptz` vira texto ISO (`IsoDateTime`); `bigint` de tempo vira `Tick` (`number` inteiro seguro); `jsonb` vira `Json`/`JsonObject`, ou `RichTextDoc` para conteúdo do Tiptap.
+- As portas (`domain/ports`) são **classes abstratas**, usadas diretamente como token de injeção (`inject(WorldRepository)`) sem que o domain importe Angular. `update` e `moveToTrash` recebem a `version` vista pelo cliente e rejeitam com `AppError('conflict')` se o item mudou.
+
 ## DDL de referência (migração inicial)
 ```sql
 -- 0. Extensões
