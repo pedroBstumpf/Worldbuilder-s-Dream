@@ -1,0 +1,39 @@
+/*
+ * Primitivos da paleta (docs/05 › Paleta de cores).
+ * Fonte única dos valores: o @theme do Tailwind (styles.css) e os tokens --wd-*
+ * (tokens.css) apontam para estas variáveis. Componentes usam os tokens, não estes hex.
+ */
+:root {
+  /* Couro: barras, painéis, capa, fundos escuros */
+  --couro-950: #1f140d;
+  --couro-900: #2b1c12;
+  --couro-800: #3a2618;
+  --couro-700: #4e3422;
+  --couro-600: #6b4a30;
+  --couro-500: #8a6444;
+
+  /* Pergaminho: páginas, fichas, texto sobre couro */
+  --pergaminho-50: #f4ead3;
+  --pergaminho-100: #efe3c8;
+  --pergaminho-200: #e3d2ac;
+  --pergaminho-300: #d2bb8b;
+  --pergaminho-400: #c9b48e;
+
+  /* Ouro: só destaque (cerca de 10% da tela) */
+  --ouro-200: #f0dca6;
+  --ouro-300: #e8c97a;
+  --ouro-400: #d9b25f;
+  --ouro-500: #b8903f;
+  --ouro-700: #8a6a2a;
+
+  /* Apoio */
+  --lacre: #a33a2a;
+  --lacre-claro: #e07a5f;
+  --musgo: #7f9a62;
+  --tinta: #5c7fa3;
+
+  /* Anéis padrão por tipo de entidade (docs/05 › Cores por tipo de entidade) */
+  --bronze: #9c7a4e;
+  --cobre: #8c5a3c;
+  --latao: #b5a27a;
+}
