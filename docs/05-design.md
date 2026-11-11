@@ -313,11 +313,13 @@ Se os dados ainda não chegaram, a página mostra a miniatura com a rosa dos ven
 #### Regras
 - **Puláveis**: clique, toque, `Esc` ou `Enter` levam ao estado final.
 - **Versão curta** quando a sessão já é válida (capa abre em 500 ms, sem o fecho).
-- Preferência em Configurações → Aparência: **completas / curtas / desligadas**.
+- **Sempre completas**: não há preferência no app (decisão de 2026-11-11, ADR-0011). As exceções são automáticas: movimento reduzido no sistema e fps baixo.
 - `prefers-reduced-motion: reduce` → fade cruzado de 150 ms.
 - Links diretos (`/w/:id?t=…`) abrem o mapa sem animação.
 - Ao fim de cada transição o foco vai para o título da nova tela e uma região `aria-live` anuncia "Biblioteca de mundos" ou "Mapa: <nome>".
-- `will-change` só durante a animação e só na propriedade animada (`will-change: opacity` achata o `preserve-3d` do livro); se o primeiro quadro demorar demais (fps baixo), usa-se automaticamente a versão curta.
+- `will-change` só durante a animação e só na propriedade animada (`will-change: opacity` achata o `preserve-3d` do livro); se o primeiro quadro demorar demais (fps baixo), usa-se automaticamente a versão curta até o fim da sessão.
+- **Versão curta**: capa em 500 ms sem o fecho, virada rígida (um plano) em 450 ms, zoom em 350 ms. **Completas**: fecho, capa em 1200 ms, virada curvada em 900 ms, zoom em 700 ms.
+- **Mundo sem mapa**: a página do mapa e a tela do mundo mostram a folha de pergaminho com borda tracejada e a rosa dos ventos, até a área de importação existir (M1).
 
 ## Componentes animados: Skiper UI + Magic UI
 | Catálogo | Stack original | Licença (gratuitos) |
