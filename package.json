@@ -10,7 +10,8 @@
     "test:watch": "ng test",
     "e2e": "playwright test",
     "lint": "ng lint && prettier --check . && stylelint \"src/**/*.css\"",
-    "format": "prettier --write . && stylelint \"src/**/*.css\" --fix"
+    "format": "prettier --write . && stylelint \"src/**/*.css\" --fix",
+    "prepare": "lefthook install"
   },
   "private": true,
   "packageManager": "pnpm@12.18.0",
@@ -33,6 +34,8 @@
     "@angular/cli": "^22.2.6",
     "@angular/compiler-cli": "^22.2.0",
     "@axe-core/playwright": "^4.14.0",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.65.0",
     "@tailwindcss/postcss": "^4.1.12",
@@ -42,6 +45,7 @@
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-boundaries": "^7.4.2",
     "jsdom": "^30.0.0",
+    "lefthook": "^2.2.2",
     "postcss": "^8.5.3",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.8.1",

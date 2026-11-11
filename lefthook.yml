@@ -1,0 +1,23 @@
+# Hooks locais do Git (docs/12). Instalados por `pnpm install` (script "prepare").
+prepare-commit-msg:
+  commands:
+    number:
+      run: sh scripts/git/number-commit.sh {1} {2}
+
+commit-msg:
+  commands:
+    lint:
+      run: pnpm commitlint --edit {1}
+
+pre-commit:
+  parallel: true
+  commands:
+    eslint:
+      glob: '*.{ts,html}'
+      run: pnpm exec eslint {staged_files}
+    prettier:
+      glob: '*.{ts,html,css,js,mjs,json,yml,yaml}'
+      run: pnpm exec prettier --check {staged_files}
+    stylelint:
+      glob: 'src/**/*.css'
+      run: pnpm exec stylelint {staged_files}

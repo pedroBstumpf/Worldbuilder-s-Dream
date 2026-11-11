@@ -1,0 +1,46 @@
+export default {
+  extends: ['@commitlint/config-conventional'],
+  parserPreset: {
+    parserOpts: {
+      headerPattern: /^\d{4} (\w+)(?:\(([\w-]+)\))?!?: (.+)$/,
+      headerCorrespondence: ['type', 'scope', 'subject'],
+    },
+  },
+  rules: {
+    'header-max-length': [2, 'always', 90],
+    'type-enum': [
+      2,
+      'always',
+      ['feat', 'fix', 'chore', 'ci', 'docs', 'test', 'refactor', 'perf', 'style'],
+    ],
+    'scope-enum': [
+      1,
+      'always',
+      [
+        'app',
+        'ui',
+        'design',
+        'book',
+        'map',
+        'timeline',
+        'time',
+        'entities',
+        'events',
+        'explorer',
+        'tokens',
+        'tools',
+        'data',
+        'gdocs',
+        'auth',
+        'db',
+        'functions',
+        'google',
+        'invites',
+        'backup',
+        'ci',
+        'deps',
+        'docs',
+      ],
+    ],
+  },
+};

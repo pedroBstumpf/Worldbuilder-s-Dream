@@ -1,8 +1,11 @@
 packages:
   - '.'
 
+# Scripts de instalação de dependências bloqueados (pnpm 10+).
+# lefthook: os hooks do Git são instalados pelo script "prepare" do package.json.
 allowBuilds:
   '@parcel/watcher': false
   esbuild: false
+  lefthook: false
   lmdb: false
   msgpackr-extract: false
