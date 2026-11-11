@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { BOOK_STRINGS } from '../src/app/core/strings/book.strings';
+import { MAP_STRINGS } from '../src/app/core/strings/map.strings';
 import { WORLD_STRINGS } from '../src/app/core/strings/world.strings';
 
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
@@ -44,7 +45,8 @@ test.describe('book: cover → library → map', () => {
     await createFirstWorld(page, 'Valmora');
     await expect(page).toHaveURL(/\/w\/[0-9a-f-]{36}$/);
     await expect(worldTitle(page, 'Valmora')).toBeFocused();
-    await expect(page.getByText(WORLD_STRINGS.noMap)).toBeVisible();
+    // Mundo sem mapa: a área de importação no lugar do canvas.
+    await expect(page.getByRole('heading', { name: MAP_STRINGS.import.title })).toBeVisible();
     // Na tela do mundo, o selo de demonstração fica dentro da barra superior.
     await expect(page.getByRole('banner').getByRole('note')).toBeVisible();
     expect((await axe(page)).violations).toEqual([]);
