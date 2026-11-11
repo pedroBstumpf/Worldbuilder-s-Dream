@@ -6,13 +6,14 @@ O coração do produto. Esta seção define como o mapa é renderizado, como o t
 Um mundo sem mapa mostra **apenas** a área de importação (visual em [`docs/05`](05-design.md#área-de-importação-de-mapa-mundo-sem-mapa)).
 
 Fluxo técnico:
-1. `MapImportDirective` escuta `dragenter`/`dragover`/`drop` **na janela inteira** (com `preventDefault`), além do `<input type="file" accept="image/png,image/jpeg,image/webp">` do botão e de `paste` com imagem.
+1. `MapImportDirective` (`features/world/import`) escuta `dragenter`/`dragover`/`drop` **na janela inteira** (com `preventDefault`) e `paste` com imagem; o botão "Escolher arquivo" abre o seletor do sistema (`accept="image/png,image/jpeg,image/webp"`). Durante o arraste só o MIME é conhecido; os bytes são validados no drop.
 2. Validação no cliente: tipo MIME **e** assinatura do arquivo (primeiros bytes), tamanho bruto ≤ 50 MB.
-3. Decodificação com `createImageBitmap` (num Web Worker com `OffscreenCanvas`, para não travar a tela).
-4. Se o lado maior passar de **8192 px**, a imagem é **reduzida automaticamente** a 8192 px (com aviso "reduzimos para caber na GPU"), em vez de ser recusada.
-5. Conversão para **WebP** (qualidade 0,9; remove metadados EXIF) e geração de miniatura de 512 px para a biblioteca.
-6. A cena carrega **imediatamente** a partir do bitmap local. O registro do mapa (`maps`, com `width`/`height` reais) é criado de forma otimista, e o envio do arquivo segue em segundo plano (Storage do Supabase por padrão; pasta do mundo no Google Drive se o usuário preferir, ver [ADR-0007](adr/0007-armazenamento-de-imagens.md)), com nova tentativa se falhar e sem perder a imagem local (fica em IndexedDB até o envio concluir).
-7. Escala (`scale_value`/`scale_unit`) fica nula até o usuário definir; enquanto isso, a régua mede em pixels do mapa.
+3. Decodificação com `createImageBitmap` num Web Worker com `OffscreenCanvas` (`map-engine/import/map-image.worker.ts`), para não travar a tela. `readMapImage(file)` valida, chama o Worker e rejeita com `MapImageError` (`not_image`, `too_large`, `empty`, `decode_failed`, `unsupported`).
+4. Se o lado maior passar de **8192 px**, a imagem é **reduzida automaticamente** a 8192 px (em etapas de metade, para não serrilhar; com aviso "reduzimos para caber na GPU"), em vez de ser recusada.
+5. Conversão para **WebP** (qualidade 0,9; remove metadados EXIF) e geração de miniatura de 512 px para a biblioteca. A miniatura do primeiro mapa de raiz vira a capa do mundo (`worlds.cover_asset_id`), exibida no frontispício e na página do mapa do livro. Navegador sem codificador WebP no `OffscreenCanvas` gera PNG.
+6. A cena carrega **imediatamente** a partir do bitmap local. O registro do mapa (`maps`, com `width`/`height` reais) é criado antes do envio, e o arquivo segue em segundo plano (Storage do Supabase por padrão; pasta do mundo no Google Drive se o usuário preferir, ver [ADR-0007](adr/0007-armazenamento-de-imagens.md)). Um anel na barra superior mostra o envio; se falhar, um aviso oferece "Tentar de novo" sem perder a imagem, que fica em memória (`WorldStore`) até o envio concluir. Guardar essa fila em IndexedDB, para sobreviver a uma recarga, entra com o adaptador do Supabase (Fase 2).
+   - Com um mapa aberto, soltar ou colar uma imagem pergunta: **criar novo mapa** (filho do atual na árvore) ou **substituir a imagem** deste mapa. Substituir reescalona links, keyframes e a escala para a nova resolução.
+7. Escala (`scale_value`/`scale_unit`) fica nula até o usuário definir; enquanto isso, a régua mede em pixels do mapa. **Definir escala** (barra esquerda, menu do título ou aviso depois da importação): dois cliques sobre a escala gráfica do mapa e o comprimento real num diálogo (`scale_value = comprimento / pixels`).
 
 ## 1. Motor de renderização
 - **PixiJS v8** (WebGL/WebGPU) + **pixi-viewport** para câmera (arrastar, zoom com roda/pinça, desaceleração, limites).
@@ -26,17 +27,26 @@ export interface MapEngine {
   mount(host: HTMLElement): Promise<void>;
   destroy(): void;
 
-  loadScene(scene: MapScene): Promise<void>;          // imagem, escala, tokens, keyframes, anotações
+  // imagem (bitmap recém-importado, de que o motor passa a ser dono, ou URL), escala,
+  // tokens, keyframes, anotações e links; enquadra o mapa
+  loadScene(scene: MapScene, image: MapImageSource | null): Promise<void>;
   applyPatch(patch: ScenePatch): void;                 // mudanças incrementais vindas da store
 
   setTime(tick: number): void;                         // chamado pelo TimelineService
-  setTool(tool: ToolId, options?: ToolOptions): void;
+  setTool(tool: ToolId): void;
+  commitTool(): void;                                  // Enter: fecha o polígono em desenho
+  cancelTool(): void;                                  // Esc: descarta o desenho
   setSelection(ids: string[]): void;
+  setLayerVisible(layer: LayerId, visible: boolean): void;
+  setInsets(insets: ViewportInsets): void;             // área coberta pelas barras
 
   screenToWorld(clientX: number, clientY: number): Point;
   worldToScreen(p: Point): Point;
   focus(target: { tokenId?: string; point?: Point; zoom?: number }, animate?: boolean): void;
-  fitToMap(): void;
+  fitToMap(animate?: boolean): void;
+  zoomBy(factor: number): void;                        // botões e teclado
+  panBy(dx: number, dy: number): void;                 // setas, em px de tela
+  readonly camera: Camera;                             // { center, zoom }
 
   readonly events: EngineEventBus;                     // eventos tipados (abaixo)
 }
@@ -48,9 +58,16 @@ type EngineEvent =
   | { type: 'annotation:created'; draft: AnnotationDraft }
   | { type: 'annotation:changed'; id: string; patch: Partial<AnnotationDraft> }
   | { type: 'measure'; points: Point[]; distance: number }
-  | { type: 'camera'; center: Point; zoom: number };
+  | { type: 'camera'; center: Point; zoom: number }
+  | { type: 'link:open'; linkId: string; targetMapId: string }   // lupa ou duplo clique na região
+  | { type: 'region:drawn'; polygon: PolygonVertex[] }           // ferramenta de link
+  | { type: 'tool:progress'; tool: ToolId; points: number };
 ```
-O componente `wd-map-canvas` é um adaptador fino: cria o motor, liga `effect(() => engine.setTime(timeline.currentTick()))`, traduz `events` em chamadas às stores.
+- O motor é criado por uma fábrica assíncrona (`MAP_ENGINE_FACTORY`, padrão `createPixiMapEngine`), que carrega o PixiJS sob demanda num chunk próprio. Os testes de componente usam `FakeMapEngine` (`map-engine/testing`).
+- O componente `wd-map-canvas` é um adaptador fino: cria o motor, passa cena, ferramenta, camadas e margens das barras, restaura a câmera salva e traduz `events` em saídas para as stores (no M3, liga `effect(() => engine.setTime(timeline.currentTick()))`). Com o foco no mapa, as setas movem (`Shift`: passo grande), `+`/`−` aproximam e `0` enquadra.
+- **Ferramentas do M1**: `pan` (padrão), `select`, `calibrate` (escala) e `link`. As demais chegam no M5.
+- **Câmera**: zoom de metade do enquadramento até 8 px de tela por px do mapa; o ponto no meio da área visível nunca sai do mapa. A câmera de cada mapa fica em `profiles.ui_prefs.cameras` (as 60 mais recentes).
+- Animações de câmera ≤ 200 ms; com movimento reduzido, sem desaceleração nem zoom suave.
 
 ### Camadas (ordem de desenho)
 1. **Background** — imagem do mapa (ou tiles na Fase 5), cor de fundo.
@@ -184,11 +201,12 @@ Toda anotação tem `tick_start`/`tick_end` opcionais (nulos = sempre visível).
 - Componente implementado com **SVG** dentro do Angular (não Pixi), porque são poucas dezenas de elementos e precisam de acessibilidade: o cursor é um `role="slider"` com `aria-valuetext` = data formatada.
 
 ## 8. Mapas hierárquicos
-- `maps.parent_map_id` forma a árvore (Mundo → Continente → Cidade).
-- `map_links`: região poligonal no mapa-pai que abre o mapa-filho (duplo clique ou ícone de lupa).
+- `maps.parent_map_id` forma a árvore (Mundo → Continente → Cidade). O **seletor no título** mostra a árvore (`buildMapTree`, em `domain/maps`), a trilha dos mapas-pai e as ações do mapa atual: renomear, tornar mapa principal, definir escala, importar outro mapa e remover links. O mapa aberto fica na URL (`?map=`).
+- `map_links`: região poligonal no mapa-pai que abre o mapa-filho (duplo clique ou ícone de lupa). **Criar**: ferramenta "Ligar a outro mapa" na barra esquerda, cliques nos cantos, Enter (ou clique no primeiro ponto) fecha, e um diálogo pergunta o mapa de destino. Os links também aparecem como botões para teclado e leitor de tela ("Abrir mapa: …").
 - O tempo é compartilhado entre mapas (mesmo `currentTick` ao navegar).
 
 ## 9. Testes do motor
 - `domain/*`: testes unitários exaustivos (interpolação, calendário, geometria, escala).
-- `map-engine`: testes com Pixi em modo headless onde possível; testes de contrato da fachada com motor *fake* nos componentes Angular.
+- `map-engine`: as partes puras (câmera, rascunhos das ferramentas, barramento de eventos) têm testes unitários; o jsdom não tem WebGL, então o Pixi é exercitado nos e2e (`e2e/maps.spec.ts`). Componentes Angular usam o motor *fake*.
+- Desempenho: `pnpm perf:map` (imagem de 8192 px + 500 tokens, pan e zoom); resultados no [ADR-0004](adr/0004-pixijs-como-motor-do-mapa.md).
 - e2e: arrastar entidade → token aparece; mover slider → token muda de posição (verificado via lista acessível espelhada, não por pixels).
