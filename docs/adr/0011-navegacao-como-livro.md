@@ -45,9 +45,9 @@ Em todos os cenários: 0% de quadros longos (> 25 ms), pior quadro de 16,8 ms e 
 4. **Profundidade das faces:** capa 3 px na frente e 1 px no verso; folha e faixas 2 px nos dois lados; página de baixo em 0. Depois de girar 180°, o verso fica por cima na ordem certa (a folha virada cobre o verso da capa), sem planos brigando.
 5. **`will-change` só na propriedade animada.** `will-change: opacity` num elemento com `preserve-3d` achata o 3D: a frente aparece espelhada no lugar do verso. A regra foi registrada em `docs/05`.
 6. **Acessibilidade:** as faixas são cópias decorativas (`aria-hidden`, `inert` e botões trocados por `span`); a folha real, interativa, só aparece fora da animação. Páginas escondidas ficam `inert`. O foco vai ao título da nova tela com `afterNextRender`, porque o `inert` só sai no ciclo de renderização seguinte.
-7. **Detecção de fps baixo** (para F1-12): se o primeiro quadro passar de 50 ms ou mais de 20% dos quadros dos primeiros 300 ms forem longos, as próximas transições da sessão usam a versão curta.
+7. **Detecção de fps baixo** (para F0-08): se o primeiro quadro passar de 50 ms ou mais de 20% dos quadros dos primeiros 300 ms forem longos, as próximas transições da sessão usam a versão curta.
 
 ### Pendências
-- O zoom da biblioteca para o mapa (View Transition `wd-world-map`) não entrou na prova; fica para F0-08/F1-12.
+- O zoom da biblioteca para o mapa (View Transition `wd-world-map`) não entrou na prova; fica para F0-08.
 - Repetir `pnpm perf:book -- --headed` (GPU de verdade) e medir no DevTools num notebook fraco na revisão de desempenho (F4-03).
-- `/dev/livro` serve de referência para o `BookShell` (F0-08) e pode ser apagada quando as transições definitivas existirem (F1-12).
+- `/dev/livro` serve de referência para o `BookShell` (F0-08) e pode ser apagada quando as transições definitivas existirem (F0-08).
