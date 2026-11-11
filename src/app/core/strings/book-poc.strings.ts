@@ -29,7 +29,7 @@ export const BOOK_POC_STRINGS = {
 
   map: {
     title: 'Mapa de Valmora',
-    note: 'Aqui entraria o zoom para o canvas do mapa (View Transition, F0-09/F1-14).',
+    note: 'Aqui entraria o zoom para o canvas do mapa (View Transition, F0-08/F1-12).',
   },
 
   announce: {

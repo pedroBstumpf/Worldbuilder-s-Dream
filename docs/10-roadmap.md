@@ -22,7 +22,7 @@ A ordem de construção é **front-end → back-end e banco → integrações �
 3. **Autenticação simulada só no modo local**: `FakeAuthService` faz a capa funcionar ("Entrar com Google" simulado) para mostrar as animações. O build de produção **não consegue** ligar o modo local (variável de build verificada no CI).
 4. **Modo demonstração visível**: selo discreto na barra superior e aviso na biblioteca ("Os dados ficam só neste navegador. Exporte seus mundos.").
 5. **Sem dados de exemplo no produto**: a demo também começa vazia (o cliente importa o próprio mapa). Fixtures existem só em testes e na página interna de desenvolvimento.
-6. **Google Docs**: na Fase 1 entram o conversor (`domain/gdocs`) e a renderização, testados com respostas da Docs API salvas em fixtures; a vinculação real a Docs entra na Fase 3.
+6. **Google Docs**: o conversor (`domain/gdocs`) e a renderização entram na Fase 3, junto com a vinculação real, testados com respostas da Docs API salvas em fixtures.
 7. **Nenhum dado real antes do backup**: o app só passa a ser usado "para valer" depois da Fase 2, com backup diário funcionando.
 
 ## Fase 0 — Fundação do front (2–3 semanas)
@@ -31,7 +31,7 @@ A ordem de construção é **front-end → back-end e banco → integrações �
 - `domain/`: modelos e portas (`WorldRepository`, `MapRepository`, `EntityRepository`, `EventRepository`, `AssetRepository`, `AuthService`), calendário e interpolação com testes.
 - `data-access/local`: adaptadores IndexedDB; `FakeAuthService`; variável de build `dataSource: 'local' | 'supabase'`.
 - CI (lint, testes, build, e2e) no GitHub Actions. Sem deploy da demonstração: as prévias são vídeos de tela.
-- **Provas de conceito**: livro (capa → abertura → virada de página até o shell do mapa, medindo fps; decidir curvatura própria ou biblioteca de *page flip*) e mapa (PixiJS v8 + pixi-viewport com 500 tokens e imagem de 8192 px).
+- **Prova de conceito do livro** (capa → abertura → virada de página, medindo fps; decidido no ADR-0011: curvatura própria). A medição do mapa (PixiJS v8 + pixi-viewport com 500 tokens e imagem de 8192 px) entra na primeira tarefa da Fase 1, junto com o `MapEngine`.
 - **Pronto quando**: o app rodando localmente abre na capa, o livro abre na biblioteca vazia, criar mundo vira a página até a área de importação; CI verde.
 
 ## Fase 1 — Front completo em modo local (8–10 semanas)
@@ -42,8 +42,8 @@ A ordem de construção é **front-end → back-end e banco → integrações �
 | M3 · Tempo | Calendário configurável, linha do tempo com eras, play/velocidade, marcadores, CRUD de eventos |
 | M4 · Tokens | Arrastar para o mapa, keyframes, interpolação, rastro, desfazer/refazer |
 | M5 · Ferramentas | Marcar ponto, régua, pincel, região, rótulo (com validade temporal); camadas |
-| M6 · Livro | Capa, biblioteca, transições completas/curtas/desligadas, 5 animações do MVP, lixeira |
-| M7 · Dados portáveis | Exportar e importar mundo em JSON (formato do `export-world`); conversor de Google Docs com fixtures |
+| M6 · Livro | Capa, biblioteca, transições completas/curtas/desligadas, lixeira |
+| M7 · Dados portáveis | Exportar e importar mundo em JSON (formato do `export-world`) |
 
 **Marco de apresentação ao cliente**: as jornadas 1 e 2 do `docs/03` passam em modo local; RNF-01 a RNF-04 medidos.
 
@@ -59,13 +59,13 @@ No Supabase, back-end e banco são a mesma peça (schema, RLS e funções), por 
 
 ## Fase 3 — Integrações Google e convites (4–6 semanas)
 - `google-connect`, `google-token`, `google-disconnect`; Picker.
-- **Google Docs como texto**: vincular, renderizar (o conversor já existe), nomes e datas, "Editar no Google Docs" com recarga por revisão, aba História, criar Doc a partir da ficha.
+- **Google Docs como texto**: conversor Doc → Tiptap com fixtures, vincular, renderizar, nomes e datas, "Editar no Google Docs" com recarga por revisão, aba História, criar Doc a partir da ficha.
 - Imagens no Drive (opção).
 - **Convites por e-mail** (Resend + domínio, Configurações › Pessoas, capa em modo convite, revogação) e membros por mundo.
 - **Pronto quando**: a jornada 3 do `docs/03` passa; teste manual com conta Google real.
 
 ## Fase 4 — Acabamento e lançamento (2–3 semanas)
-Arte final da capa, polimento das animações, revisão de acessibilidade e desempenho, exclusão de conta, checklist de release do `docs/09`.
+Arte final da capa, os 5 componentes animados do MVP (Skiper UI/Magic UI), polimento das animações, revisão de acessibilidade e desempenho, exclusão de conta, checklist de release do `docs/09`.
 
 ## Fase 5 — Evolução
 - Tempo real entre os usuários de um mundo e presença.
