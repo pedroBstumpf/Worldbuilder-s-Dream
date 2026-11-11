@@ -1,5 +1,5 @@
 <router-outlet />
-@if (demoMode) {
-  <!-- Enquanto a barra superior do livro não existe, o selo fica no topo do app. -->
+@if (demoMode && !inWorld()) {
+  <!-- No livro, o selo flutua no topo; na tela do mundo, vai para a barra superior. -->
   <wd-demo-badge [label]="demoStrings.badge" [detail]="demoStrings.badgeDetail" />
 }

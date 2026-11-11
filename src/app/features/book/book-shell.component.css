@@ -1,0 +1,304 @@
+/*
+ * Livro em CSS 3D (ADR-0011, a partir da prova de conceito da F0-07).
+ * O estado em repouso vem dos atributos da cena (data-cover, data-leaf); o BookAnimator
+ * anima entre eles com a Web Animations API e devolve o controle ao CSS no fim.
+ * Profundidade das faces (evita que planos coincidentes briguem):
+ *   capa: frente 3px / verso 1px · folha e faixas: 2px / 2px · página do mapa: 0.
+ * Ao girar 180°, o verso passa a ficar por cima: a folha virada (2px) cobre o
+ * verso da capa (1px), como num livro de verdade.
+ */
+
+:host {
+  display: block;
+}
+
+.book-scene {
+  --page-h: min(80dvh, 720px, calc((100cqw - 48px) / 1.44));
+  --page-w: calc(var(--page-h) * 0.72);
+  --strips: 8;
+  --shade: color-mix(in oklab, var(--couro-950) 75%, transparent);
+
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-block-size: 100dvh;
+  overflow: hidden;
+  container-type: inline-size;
+  perspective: 2000px;
+  background-color: var(--couro-950);
+
+  /* Livro sobre a mesa à luz de vela: luz quente de cima e vinheta. */
+  background-image:
+    radial-gradient(
+      ellipse 55% 45% at 50% 0%,
+      color-mix(in oklab, var(--ouro-300) 16%, transparent),
+      transparent 75%
+    ),
+    radial-gradient(ellipse at center, transparent 45%, var(--shade) 100%);
+}
+
+.book-actions {
+  position: absolute;
+  inset-block-start: 16px;
+  inset-inline-end: 16px;
+  z-index: 1;
+}
+
+.book {
+  position: relative;
+  inline-size: calc(var(--page-w) * 2);
+  block-size: var(--page-h);
+  transform: translateX(-25%);
+  transform-style: preserve-3d;
+}
+
+/* Dobradiças: giram em torno da lombada (centro do livro). */
+.cover,
+.leaf,
+.strips,
+.map-page {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 50%;
+  inline-size: var(--page-w);
+  block-size: 100%;
+}
+
+.cover,
+.leaf,
+.strips,
+.strip {
+  transform-origin: left center;
+  transform-style: preserve-3d;
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  border-radius: 0 8px 8px 0;
+}
+
+.face-front {
+  transform: translateZ(2px);
+}
+
+.face-back {
+  border-radius: 8px 0 0 8px;
+  transform: rotateY(180deg) translateZ(2px);
+}
+
+.cover > .face-front {
+  transform: translateZ(3px);
+}
+
+.cover > .face-back {
+  transform: rotateY(180deg) translateZ(1px);
+}
+
+/* Sombra da lombada, fixa, em cada página. */
+.map-page::before,
+.leaf > .face-front::before,
+.strip-content::before,
+.left-page::before,
+.leaf > .face-back::before,
+.strip-back::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background-image: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--couro-700) 35%, transparent),
+    transparent 12%
+  );
+}
+
+.left-page::before,
+.leaf > .face-back::before,
+.strip-back::before {
+  background-image: linear-gradient(
+    to left,
+    color-mix(in oklab, var(--couro-700) 35%, transparent),
+    transparent 12%
+  );
+}
+
+/* Sombras animadas (só opacity). */
+.shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.shade-from-edge {
+  background-image: linear-gradient(
+    to left,
+    var(--shade),
+    color-mix(in oklab, var(--couro-950) 15%, transparent)
+  );
+}
+
+.shade-from-spine {
+  background-image: linear-gradient(to right, var(--shade), transparent 65%);
+}
+
+.shade-to-spine {
+  background-image: linear-gradient(to left, var(--shade), transparent 60%);
+}
+
+/* Capa */
+.leather {
+  display: flex;
+  flex-direction: column;
+  gap: 6%;
+  align-items: center;
+  justify-content: center;
+  padding: 10%;
+  background-color: var(--couro-800);
+  background-image: var(--wd-texture-leather);
+  border: 1px solid var(--wd-rule);
+  border-radius: 3px 12px 12px 3px;
+  outline: 1px solid var(--wd-rule-inner);
+  outline-offset: -10px;
+  box-shadow: var(--wd-shadow-panel);
+}
+
+.rose {
+  inline-size: 42%;
+}
+
+.rose-ring {
+  fill: none;
+  stroke: var(--ouro-500);
+  stroke-width: 1.2;
+}
+
+.rose-point {
+  fill: var(--ouro-400);
+  stroke: var(--ouro-700);
+  stroke-width: 0.8;
+}
+
+.rose-minor {
+  fill: var(--ouro-700);
+}
+
+.rose-hub {
+  fill: var(--couro-900);
+  stroke: var(--ouro-300);
+}
+
+.clasp {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: calc(100% - 34px);
+  inline-size: 58px;
+  block-size: 42px;
+  background-color: var(--couro-700);
+  background-image: var(--wd-texture-leather);
+  border: 1px solid var(--wd-rule);
+  border-radius: 6px 21px 21px 6px;
+  box-shadow: var(--wd-shadow-panel);
+  transform: translateY(-50%) translateZ(4px);
+}
+
+.clasp::after {
+  position: absolute;
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+  inline-size: 16px;
+  block-size: 16px;
+  content: '';
+  background-image: radial-gradient(circle at 35% 35%, var(--ouro-200), var(--ouro-700));
+  border-radius: 50%;
+}
+
+/* Verso da capa: sumário */
+.left-page {
+  padding: 12% 10%;
+}
+
+/* Virada curvada: cada faixa mostra o seu pedaço da página inteira. */
+.strip {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+
+  /* 1 px de sobreposição esconde a fresta de antialiasing entre faixas. */
+  inline-size: calc(var(--page-w) / var(--strips) + 1px);
+  block-size: 100%;
+}
+
+.strip > .strip {
+  inset-inline-start: calc(100% - 1px);
+}
+
+.strip > .face {
+  overflow: hidden;
+  border-radius: 0;
+}
+
+.strip-content,
+.strip-back {
+  position: absolute;
+  inset-block: 0;
+  inline-size: var(--page-w);
+}
+
+.strip-content {
+  inset-inline-start: calc(var(--strip-i) * var(--page-w) / var(--strips) * -1);
+}
+
+/* O verso gira 180°: a faixa i mostra o trecho a (i + 1) faixas da lombada. */
+.strip-back {
+  inset-inline-start: calc((var(--strip-i) + 1) * var(--page-w) / var(--strips) - var(--page-w));
+}
+
+/* Página do mapa (mundo sem mapa: a folha da área de importação, docs/05). */
+.map-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 9% 9% 7%;
+  border-radius: 0 8px 8px 0;
+}
+
+.map-frame {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 0;
+  padding: 8%;
+  background-color: var(--pergaminho-100);
+  border: 2px dashed var(--ouro-500);
+}
+
+.map-rose {
+  inline-size: 40%;
+  fill: none;
+  stroke: var(--ouro-700);
+  stroke-width: 1;
+}
+
+/* Estados em repouso (no fim: mais específicos que as regras de cada peça) */
+[data-cover='open'] .book {
+  transform: translateX(0);
+}
+
+[data-cover='open'] .cover {
+  transform: rotateY(-180deg);
+}
+
+[data-cover='open'] .clasp {
+  opacity: 0;
+  transform: translateY(-50%) translateZ(4px) translateX(28px) rotate(10deg);
+}
+
+[data-leaf='turned'] .leaf {
+  transform: rotateY(-180deg);
+}

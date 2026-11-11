@@ -15,6 +15,8 @@ const SKIP_KEYS = new Set(['Escape', 'Enter']);
  * Clique, toque, Esc ou Enter levam ao estado final.
  */
 export function bookViewTransition({ transition }: ViewTransitionInfo): void {
+  // Pular rejeita `ready` com AbortError; o Router já trata e, só em desenvolvimento,
+  // registra no console. Não é erro do app.
   const arrival = inject(BookTransitions).arrival();
   const motion = inject(BookMotionService).motion();
   if (!arrival || arrival.kind === 'resume' || motion === 'fade') {

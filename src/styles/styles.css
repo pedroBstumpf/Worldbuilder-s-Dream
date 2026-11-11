@@ -144,3 +144,21 @@
     }
   }
 }
+
+/*
+ * Zoom livro ↔ mapa (ADR-0011): a ilustração da página e o host do mapa compartilham
+ * `view-transition-name: wd-world-map`. Durante o zoom, `bookViewTransition` marca o
+ * <html> com data-book-zoom (full ou short); as demais navegações não animam.
+ */
+::view-transition-group(wd-world-map),
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--wd-dur-zoom);
+  animation-timing-function: var(--wd-ease-page);
+}
+
+:root[data-book-zoom='short']::view-transition-group(wd-world-map),
+:root[data-book-zoom='short']::view-transition-old(root),
+:root[data-book-zoom='short']::view-transition-new(root) {
+  animation-duration: var(--wd-dur-zoom-short);
+}
