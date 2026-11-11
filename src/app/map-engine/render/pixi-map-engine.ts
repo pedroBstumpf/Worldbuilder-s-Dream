@@ -153,6 +153,12 @@ export class PixiMapEngine implements MapEngine {
     this.tokens?.destroy();
     this.links?.destroy();
     this.destroyBackground();
+    // O viewport sai antes da aplicação: destruída primeiro, ela leva o ticker junto e o
+    // viewport quebra ao tentar se desligar dele.
+    if (this.viewport) {
+      this.viewport.removeFromParent();
+      this.viewport.destroy({ children: true });
+    }
     this.app?.destroy(true, { children: true });
     this.app = null;
     this.viewport = null;
