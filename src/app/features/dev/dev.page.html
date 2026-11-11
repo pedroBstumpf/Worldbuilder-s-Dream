@@ -1,0 +1,162 @@
+<main class="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-10">
+  <header class="flex flex-col gap-2">
+    <h1 class="wd-inscription text-3xl text-ouro-400">{{ text.title }}</h1>
+    <p class="font-book text-lg text-pergaminho-400">{{ text.intro }}</p>
+  </header>
+
+  <!-- Botões -->
+  <section class="flex flex-col gap-4" aria-labelledby="dev-buttons">
+    <h2 id="dev-buttons" class="wd-inscription text-xl text-pergaminho-100">
+      {{ text.buttons.heading }}
+    </h2>
+    <div class="grid gap-4 md:grid-cols-2">
+      @for (surface of ['wd-panel', 'wd-page']; track surface) {
+        <div class="flex flex-col gap-4 rounded-panel p-6" [class]="surface">
+          <h3 class="font-sans text-sm font-semibold">
+            {{ surface === 'wd-panel' ? text.onLeather : text.onParchment }}
+          </h3>
+          <div class="flex flex-wrap gap-2">
+            <button wd-button variant="primary" type="button">{{ text.buttons.primary }}</button>
+            <button wd-button variant="secondary" type="button">
+              {{ text.buttons.secondary }}
+            </button>
+            <button wd-button variant="ghost" type="button">{{ text.buttons.ghost }}</button>
+            <button wd-button variant="danger" type="button">
+              <wd-icon name="delete" size="sm" />
+              {{ text.buttons.danger }}
+            </button>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button wd-button variant="primary" size="sm" type="button">
+              {{ text.buttons.small }}
+            </button>
+            <button wd-button size="sm" type="button">{{ text.buttons.small }}</button>
+            <button wd-button variant="primary" type="button" disabled>
+              {{ text.buttons.disabled }}
+            </button>
+            <button wd-button type="button" disabled>{{ text.buttons.disabled }}</button>
+          </div>
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- Botões de ícone -->
+  <section class="flex flex-col gap-4" aria-labelledby="dev-icon-buttons">
+    <h2 id="dev-icon-buttons" class="wd-inscription text-xl text-pergaminho-100">
+      {{ text.iconButtons.heading }}
+    </h2>
+    <p class="font-sans text-sm text-pergaminho-400">{{ text.iconButtons.hint }}</p>
+    <div class="flex flex-wrap items-start gap-6">
+      <div
+        class="wd-panel flex flex-col gap-1 p-2"
+        role="toolbar"
+        aria-orientation="vertical"
+        [attr.aria-label]="text.iconButtons.toolbar"
+      >
+        @for (tool of tools; track tool.id) {
+          <button
+            wd-icon-button
+            variant="secondary"
+            type="button"
+            tooltipPosition="right"
+            [icon]="tool.icon"
+            [label]="text.iconButtons.tools[tool.id]"
+            [pressed]="activeTool() === tool.id"
+            (click)="activeTool.set(tool.id)"
+          ></button>
+        }
+      </div>
+      <div class="wd-panel flex items-center gap-1 px-2 py-1">
+        <button
+          wd-icon-button
+          type="button"
+          icon="auto_stories"
+          tooltipPosition="below"
+          [label]="text.iconButtons.library"
+        ></button>
+        <button
+          wd-icon-button
+          type="button"
+          icon="search"
+          tooltipPosition="below"
+          [label]="text.iconButtons.search"
+        ></button>
+        <button
+          wd-icon-button
+          type="button"
+          icon="settings"
+          tooltipPosition="below"
+          [label]="text.iconButtons.settings"
+        ></button>
+      </div>
+      <div class="wd-page flex items-center gap-1 rounded-panel px-2 py-1">
+        <button
+          wd-icon-button
+          type="button"
+          icon="search"
+          [label]="text.iconButtons.search"
+        ></button>
+        <button
+          wd-icon-button
+          variant="secondary"
+          type="button"
+          icon="settings"
+          [label]="text.iconButtons.settings"
+        ></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tooltips -->
+  <section class="flex flex-col gap-4" aria-labelledby="dev-tooltips">
+    <h2 id="dev-tooltips" class="wd-inscription text-xl text-pergaminho-100">
+      {{ text.tooltips.heading }}
+    </h2>
+    <div class="flex flex-wrap gap-2">
+      @for (position of tooltipPositions; track position) {
+        <button
+          wd-button
+          type="button"
+          [wdTooltip]="text.tooltips.text"
+          [wdTooltipPosition]="position"
+        >
+          {{ text.tooltips[position] }}
+        </button>
+      }
+    </div>
+  </section>
+
+  <!-- Diálogos -->
+  <section class="flex flex-col gap-4" aria-labelledby="dev-dialogs">
+    <h2 id="dev-dialogs" class="wd-inscription text-xl text-pergaminho-100">
+      {{ text.dialogs.heading }}
+    </h2>
+    <div class="flex flex-wrap gap-2">
+      <button wd-button type="button" (click)="openDialog('simple')">
+        {{ text.dialogs.openSimple }}
+      </button>
+      <button wd-button type="button" (click)="openDialog('reading')">
+        {{ text.dialogs.openReading }}
+      </button>
+      <button wd-button type="button" (click)="openDialog('danger')">
+        {{ text.dialogs.openDanger }}
+      </button>
+    </div>
+  </section>
+
+  <!-- Avisos -->
+  <section class="flex flex-col gap-4" aria-labelledby="dev-toasts">
+    <h2 id="dev-toasts" class="wd-inscription text-xl text-pergaminho-100">
+      {{ text.toasts.heading }}
+    </h2>
+    <div class="flex flex-wrap gap-2">
+      <button wd-button type="button" (click)="showToast('info')">{{ text.toasts.info }}</button>
+      <button wd-button type="button" (click)="showToast('success')">
+        {{ text.toasts.success }}
+      </button>
+      <button wd-button type="button" (click)="showToast('error')">{{ text.toasts.error }}</button>
+      <button wd-button type="button" (click)="showUndoToast()">{{ text.toasts.withUndo }}</button>
+    </div>
+  </section>
+</main>
