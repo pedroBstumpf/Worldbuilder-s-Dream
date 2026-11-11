@@ -32,6 +32,12 @@
   --wd-info: var(--tinta);
   --wd-focus-ring: var(--ouro-300);
 
+  /* Controles secundário e fantasma: dependem da superfície (.wd-page redefine) */
+  --wd-control-bg: var(--couro-800);
+  --wd-control-bg-hover: var(--couro-700);
+  --wd-control-text: var(--pergaminho-100);
+  --wd-control-border: var(--wd-rule);
+
   /* Forma */
   --wd-radius-control: 6px;
   --wd-radius-panel: 10px;

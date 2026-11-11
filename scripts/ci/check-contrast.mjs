@@ -16,6 +16,12 @@ const PAIRS = [
   ['lacre-claro', 'couro-900', 4.5],
   ['ouro-700', 'pergaminho-50', 3],
   ['ouro-300', 'couro-900', 3], // anel de foco
+  ['couro-950', 'ouro-300', 4.5], // botão primário em hover
+  ['pergaminho-100', 'couro-800', 4.5], // botão secundário sobre couro
+  ['couro-900', 'pergaminho-200', 4.5], // botão secundário sobre pergaminho
+  ['pergaminho-50', 'lacre', 4.5], // botão destrutivo
+  ['tinta', 'couro-900', 3], // ícone de aviso informativo
+  ['musgo', 'couro-900', 3], // ícone de aviso de sucesso
 ];
 
 const css = readFileSync(PALETTE, 'utf8');
