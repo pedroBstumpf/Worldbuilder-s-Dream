@@ -127,4 +127,20 @@
     outline: 2px solid var(--wd-focus-ring);
     outline-offset: 2px;
   }
+
+  /* Diálogos (shared/ui/dialog): fundo escurecido; o contêiner focado não ganha anel. */
+  .wd-dialog-backdrop {
+    background-color: color-mix(in oklab, var(--wd-bg-backdrop) 72%, transparent);
+    transition-duration: var(--wd-dur-slow);
+  }
+
+  .wd-dialog-pane .cdk-dialog-container:focus-visible {
+    outline: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wd-dialog-backdrop {
+      transition: none;
+    }
+  }
 }
