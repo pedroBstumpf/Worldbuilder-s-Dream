@@ -17,6 +17,12 @@
         ]
       }
     ],
-    "import-notation": "string"
+    "import-notation": "string",
+    "custom-property-pattern": [
+      "^[a-z][a-z0-9]*(-{1,2}[a-z0-9]+)*(-\\*)?$",
+      {
+        "message": "Use kebab-case (o @theme do Tailwind também aceita --nome--sub e --nome-*)"
+      }
+    ]
   }
 }
