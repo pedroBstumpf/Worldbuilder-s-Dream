@@ -1,0 +1,49 @@
+/* Tokens semânticos --wd-* (docs/05 › Semânticos e Movimento). */
+:root {
+  /* Superfícies e texto */
+  --wd-bg-backdrop: var(--couro-950);
+  --wd-surface: var(--couro-900);
+  --wd-surface-raised: var(--couro-800);
+  --wd-surface-active: var(--couro-700);
+  --wd-page: var(--pergaminho-50);
+  --wd-page-muted: var(--pergaminho-200);
+  --wd-text-on-surface: var(--pergaminho-100);
+  --wd-text-muted: var(--pergaminho-400);
+  --wd-text-on-page: var(--couro-900);
+  --wd-text-on-page-muted: var(--couro-600);
+  --wd-text-on-accent: var(--couro-950);
+
+  /* Destaque (ouro) */
+  --wd-accent: var(--ouro-400);
+  --wd-accent-hover: var(--ouro-300);
+  --wd-accent-pressed: var(--ouro-500);
+  --wd-accent-glow: color-mix(in oklab, var(--ouro-300) 55%, transparent);
+
+  /* Filetes e divisores */
+  --wd-rule: color-mix(in oklab, var(--ouro-500) 40%, transparent);
+  --wd-rule-inner: color-mix(in oklab, var(--ouro-500) 18%, transparent);
+  --wd-rule-strong: var(--ouro-500);
+  --wd-divider: color-mix(in oklab, var(--couro-500) 50%, transparent);
+
+  /* Estados */
+  --wd-danger: var(--lacre-claro);
+  --wd-danger-on-page: var(--lacre);
+  --wd-success: var(--musgo);
+  --wd-info: var(--tinta);
+  --wd-focus-ring: var(--ouro-300);
+
+  /* Forma */
+  --wd-radius-control: 6px;
+  --wd-radius-panel: 10px;
+  --wd-shadow-panel: 0 8px 24px rgb(15 9 5 / 45%);
+
+  /* Movimento: só transform, opacity e filter leve */
+  --wd-dur-fast: 120ms;
+  --wd-dur-base: 200ms;
+  --wd-dur-slow: 360ms;
+  --wd-dur-page: 900ms;
+  --wd-dur-cover: 1200ms;
+  --wd-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --wd-ease-page: cubic-bezier(0.45, 0.05, 0.25, 1);
+  --wd-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
