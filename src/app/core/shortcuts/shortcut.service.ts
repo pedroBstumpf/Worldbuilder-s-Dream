@@ -11,6 +11,8 @@ export interface Shortcut {
   readonly inFields?: boolean;
   /** Mantém o comportamento padrão do navegador (ex.: colar). */
   readonly keepDefault?: boolean;
+  /** Só vale quando devolve `true` (ex.: Enter só com uma ferramenta de desenho ativa). */
+  readonly when?: (event: KeyboardEvent) => boolean;
   readonly down: (event: KeyboardEvent) => void;
   /** Ao soltar (atalhos de segurar, como Espaço). */
   readonly up?: (event: KeyboardEvent) => void;
@@ -71,7 +73,8 @@ export class ShortcutService {
           s.key === key &&
           (s.mod ?? false) === mod &&
           (s.shift === undefined || s.shift === event.shiftKey) &&
-          !event.altKey,
+          !event.altKey &&
+          (s.when?.(event) ?? true),
       );
       if (match) return match;
     }
