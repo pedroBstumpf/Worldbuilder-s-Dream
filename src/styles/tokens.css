@@ -38,6 +38,9 @@
   --wd-control-text: var(--pergaminho-100);
   --wd-control-border: var(--wd-rule);
 
+  /* Ícones (fonte em fonts.css) */
+  --wd-font-icon: 'Material Symbols Rounded';
+
   /* Forma */
   --wd-radius-control: 6px;
   --wd-radius-panel: 10px;
