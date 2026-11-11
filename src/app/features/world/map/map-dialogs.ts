@@ -20,7 +20,12 @@ const LABEL = 'font-sans text-sm font-semibold';
   imports: [ButtonComponent, DialogComponent, ReactiveFormsModule],
   template: `
     <wd-dialog [title]="text.title">
-      <form id="wd-rename-map" class="flex flex-col gap-1.5" (ngSubmit)="submit()">
+      <form
+        id="wd-rename-map"
+        class="flex flex-col gap-1.5"
+        [formGroup]="form"
+        (ngSubmit)="submit()"
+      >
         <label for="wd-map-name" [class]="label">{{ text.name }}</label>
         <input
           id="wd-map-name"
@@ -28,7 +33,7 @@ const LABEL = 'font-sans text-sm font-semibold';
           autocomplete="off"
           cdkFocusInitial
           [class]="field"
-          [formControl]="name"
+          formControlName="name"
           [attr.aria-invalid]="error() ? 'true' : null"
           [attr.aria-describedby]="error() ? 'wd-map-name-error' : null"
         />
@@ -50,12 +55,16 @@ export class RenameMapDialogComponent {
   protected readonly text = MAP_STRINGS.rename;
   protected readonly field = FIELD;
   protected readonly label = LABEL;
-  protected readonly name = inject(NonNullableFormBuilder).control(inject<string>(DIALOG_DATA));
+  // Com [formGroup] o Angular intercepta o envio; um <form> solto faria o envio nativo
+  // (recarregando a página) e o (ngSubmit) nunca dispararia.
+  protected readonly form = inject(NonNullableFormBuilder).group({
+    name: [inject<string>(DIALOG_DATA)],
+  });
   private readonly submitted = signal(false);
 
   protected error(): string | null {
     if (!this.submitted()) return null;
-    const name = this.name.value.trim();
+    const name = this.form.controls.name.value.trim();
     if (!name) return this.text.required;
     if (name.length > MAP_NAME_MAX) return this.text.tooLong(MAP_NAME_MAX);
     return null;
@@ -67,7 +76,7 @@ export class RenameMapDialogComponent {
       document.getElementById('wd-map-name')?.focus();
       return;
     }
-    this.ref.close(this.name.value.trim());
+    this.ref.close(this.form.controls.name.value.trim());
   }
 }
 
