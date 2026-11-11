@@ -147,3 +147,41 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Angular
+/.angular/cache
+/dist
+/tmp
+/out-tsc
+/bazel-out
+/connect.lock
+/libpeerconnection.log
+testem.log
+/typings
+__screenshots__/
+
+# IDEs and editors
+.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/mcp.json
+.history/*
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# System files
+.DS_Store
+Thumbs.db
