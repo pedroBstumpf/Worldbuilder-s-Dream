@@ -1,2 +1,119 @@
-/* Entrada global de estilos. Paleta, tokens --wd-* e @theme entram na F0-03 (docs/05). */
+/* Entrada global de estilos (docs/05 › Implementação do tema). Só CSS, sem Sass. */
 @import 'tailwindcss';
+@import './palette.css';
+@import './tokens.css';
+@import './fonts.css';
+@import './textures.css';
+
+/* Remove os padrões do Tailwind: cores, fontes e tamanhos só pelos tokens do projeto. */
+@theme {
+  --color-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+}
+
+/* Cores apontam para palette.css (fonte única dos valores). */
+@theme inline {
+  --color-couro-950: var(--couro-950);
+  --color-couro-900: var(--couro-900);
+  --color-couro-800: var(--couro-800);
+  --color-couro-700: var(--couro-700);
+  --color-couro-600: var(--couro-600);
+  --color-couro-500: var(--couro-500);
+  --color-pergaminho-50: var(--pergaminho-50);
+  --color-pergaminho-100: var(--pergaminho-100);
+  --color-pergaminho-200: var(--pergaminho-200);
+  --color-pergaminho-300: var(--pergaminho-300);
+  --color-pergaminho-400: var(--pergaminho-400);
+  --color-ouro-200: var(--ouro-200);
+  --color-ouro-300: var(--ouro-300);
+  --color-ouro-400: var(--ouro-400);
+  --color-ouro-500: var(--ouro-500);
+  --color-ouro-700: var(--ouro-700);
+  --color-lacre: var(--lacre);
+  --color-lacre-claro: var(--lacre-claro);
+  --color-musgo: var(--musgo);
+  --color-tinta: var(--tinta);
+  --color-bronze: var(--bronze);
+  --color-cobre: var(--cobre);
+  --color-latao: var(--latao);
+  --radius-control: var(--wd-radius-control);
+  --radius-panel: var(--wd-radius-panel);
+  --shadow-panel: var(--wd-shadow-panel);
+}
+
+@theme {
+  --font-inscription: 'Cinzel', serif;
+  --font-book: 'EB Garamond', 'Georgia', serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Escala 12 / 14 / 16 / 18 / 22 / 28 / 36 / 56 */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.875rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.25rem;
+  --text-3xl: 2.25rem;
+  --text-3xl--line-height: 2.75rem;
+  --text-4xl: 3.5rem;
+  --text-4xl--line-height: 4rem;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background-color: var(--wd-bg-backdrop);
+    color: var(--wd-text-on-surface);
+  }
+
+  ::selection {
+    background-color: var(--wd-accent);
+    color: var(--wd-text-on-accent);
+  }
+
+  /* Anel de foco ouro-300 (2 px + 2 px de deslocamento) em todos os controles. */
+  :focus-visible {
+    outline: 2px solid var(--wd-focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Painel de couro com filete dourado duplo. */
+  .wd-panel {
+    border: 1px solid var(--wd-rule);
+    border-radius: var(--wd-radius-panel);
+    outline: 1px solid var(--wd-rule-inner);
+    outline-offset: -4px;
+    background-color: color-mix(in oklab, var(--wd-surface) 95%, transparent);
+    background-image: var(--wd-texture-leather);
+    color: var(--wd-text-on-surface);
+    box-shadow: var(--wd-shadow-panel);
+  }
+
+  /* Página de pergaminho com fibras e vinheta. */
+  .wd-page {
+    background-color: var(--wd-page);
+    background-image: var(--wd-vignette-page), var(--wd-texture-parchment);
+    color: var(--wd-text-on-page);
+  }
+
+  .wd-inscription {
+    font-family: var(--font-inscription);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .wd-focus:focus-visible {
+    outline: 2px solid var(--wd-focus-ring);
+    outline-offset: 2px;
+  }
+}
