@@ -3,12 +3,24 @@ import { provideRouter, Router } from '@angular/router';
 import { routes } from './app.routes';
 
 describe('app routes', () => {
-  it('redirects unknown urls to the start page', async () => {
+  function setup(): Router {
     TestBed.configureTestingModule({ providers: [provideRouter(routes)] });
-    const router = TestBed.inject(Router);
+    return TestBed.inject(Router);
+  }
+
+  it('redirects unknown urls to the start page', async () => {
+    const router = setup();
 
     await router.navigateByUrl('/app/study/40');
 
     expect(router.url).toBe('/');
+  });
+
+  it('serves the internal /dev page in development', async () => {
+    const router = setup();
+
+    await router.navigateByUrl('/dev');
+
+    expect(router.url).toBe('/dev');
   });
 });
