@@ -1,6 +1,9 @@
 import { bootstrapApplication } from '@angular/platform-browser';
 import { appConfig } from './app/app.config';
-import { App } from './app/app.component';
+import { AppComponent } from './app/app.component';
 
-bootstrapApplication(App, appConfig)
-  .catch((err) => console.error(err));
+bootstrapApplication(AppComponent, appConfig).catch((err: unknown) => {
+  // Falha no bootstrap: ainda não há ErrorHandler nem toast para avisar.
+  // eslint-disable-next-line no-console
+  console.error(err);
+});

@@ -10,16 +10,13 @@
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
-          "type": "component",
-          "addTypeToClassName": false
+          "type": "component"
         },
         "@schematics/angular:directive": {
-          "type": "directive",
-          "addTypeToClassName": false
+          "type": "directive"
         },
         "@schematics/angular:service": {
-          "type": "service",
-          "addTypeToClassName": false
+          "type": "service"
         },
         "@schematics/angular:guard": {
           "typeSeparator": "."
@@ -50,10 +47,18 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "**/*",
+                "input": "src/assets",
+                "output": "assets",
+                "ignore": [
+                  "**/.gitkeep"
+                ]
               }
             ],
             "styles": [
-              "src/styles.css"
+              "src/styles/styles.css"
             ]
           },
           "configurations": {
