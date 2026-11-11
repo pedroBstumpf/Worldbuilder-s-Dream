@@ -27,6 +27,7 @@
     "@angular/forms": "^22.2.0",
     "@angular/platform-browser": "^22.2.0",
     "@angular/router": "^22.2.0",
+    "idb": "^8.0.4",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zod": "^4.6.7"
@@ -47,6 +48,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-boundaries": "^7.4.2",
+    "fake-indexeddb": "^6.2.8",
     "jsdom": "^30.0.0",
     "lefthook": "^2.2.2",
     "postcss": "^8.5.3",
