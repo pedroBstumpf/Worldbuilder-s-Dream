@@ -1,5 +1,6 @@
 import { makeEnvironmentProviders, type EnvironmentProviders } from '@angular/core';
 import {
+  AssetRepository,
   AuthService,
   EntityRepository,
   EventRepository,
@@ -13,6 +14,7 @@ import {
   LocalDatabase,
   type LocalDataAccessOptions,
 } from './local-database';
+import { LocalAssetRepository } from './local-asset.repository';
 import { LocalEntityRepository } from './local-entity.repository';
 import { LocalEventRepository } from './local-event.repository';
 import { LocalMapRepository } from './local-map.repository';
@@ -33,5 +35,6 @@ export function provideLocalDataAccess(
     { provide: MapRepository, useClass: LocalMapRepository },
     { provide: EntityRepository, useClass: LocalEntityRepository },
     { provide: EventRepository, useClass: LocalEventRepository },
+    { provide: AssetRepository, useClass: LocalAssetRepository },
   ]);
 }
