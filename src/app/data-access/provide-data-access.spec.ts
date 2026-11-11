@@ -6,6 +6,7 @@ import {
   EntityRepository,
   EventRepository,
   MapRepository,
+  ProfileRepository,
   WorldRepository,
 } from '@domain/ports';
 import { FakeAuthService } from './local/fake-auth.service';
@@ -24,7 +25,13 @@ describe('provideDataAccess', () => {
     expect(TestBed.inject(DEMO_MODE)).toBe(true);
     expect(TestBed.inject(AuthService)).toBeInstanceOf(FakeAuthService);
     expect(TestBed.inject(WorldRepository)).toBeInstanceOf(LocalWorldRepository);
-    for (const port of [MapRepository, EntityRepository, EventRepository, AssetRepository]) {
+    for (const port of [
+      MapRepository,
+      EntityRepository,
+      EventRepository,
+      AssetRepository,
+      ProfileRepository,
+    ]) {
       expect(TestBed.inject<object>(port)).toBeInstanceOf(port);
     }
   });
