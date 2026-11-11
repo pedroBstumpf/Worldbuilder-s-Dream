@@ -12,7 +12,7 @@ A ordem de construção é **front-end → back-end e banco → integrações �
 | As partes mais arriscadas e trabalhosas são do front (motor do mapa, tempo, animações); enfrentá-las primeiro reduz o risco do projeto | **UI desenhada para dados ideais** (sem latência, sem erro, sem conflito). → Os adaptadores locais podem simular atraso e falha, e os estados de carregamento/erro são feitos desde o início |
 | Feedback de UX antes de fixar o schema do banco | **Retrabalho se o modelo de dados divergir**. → Os modelos do front seguem o `docs/07` desde o primeiro dia (ids `uuid`, ticks inteiros, `version`) |
 | Sem custos nem contas de back-end no início | **Segurança e Google deixados para depois** podem esconder surpresas (login, tokens, Docs). → Ficam documentados e com provas de conceito marcadas na Fase 2 e 3; nada no front depende de detalhes que eles possam mudar |
-| A demonstração pode ser publicada sem servidor (Cloudflare Pages) | **Dados do cliente presos no navegador** durante a demo. → Exportar/importar mundo em JSON desde a Fase 1, no mesmo formato que o back-end vai importar |
+| A demonstração não precisa de servidor nem de contas: o cliente acompanha por **vídeos de tela** do app rodando localmente | **Dados de teste presos no navegador** de quem desenvolve. → Exportar/importar mundo em JSON desde a Fase 1, no mesmo formato que o back-end vai importar |
 
 **Conclusão:** é uma boa decisão para este projeto, desde que as regras abaixo sejam seguidas.
 
@@ -30,9 +30,9 @@ A ordem de construção é **front-end → back-end e banco → integrações �
 - Design tokens couro/pergaminho/ouro, fontes e texturas; primeiros componentes de `shared/ui` (botão, ícone-botão, tooltip, diálogo, toast).
 - `domain/`: modelos e portas (`WorldRepository`, `MapRepository`, `EntityRepository`, `EventRepository`, `AssetRepository`, `AuthService`), calendário e interpolação com testes.
 - `data-access/local`: adaptadores IndexedDB; `FakeAuthService`; variável de build `dataSource: 'local' | 'supabase'`.
-- CI (lint, testes, build) e deploy da demonstração no **Cloudflare Pages** (`*.pages.dev`, modo local).
+- CI (lint, testes, build, e2e) no GitHub Actions. Sem deploy da demonstração: as prévias são vídeos de tela.
 - **Provas de conceito**: livro (capa → abertura → virada de página até o shell do mapa, medindo fps; decidir curvatura própria ou biblioteca de *page flip*) e mapa (PixiJS v8 + pixi-viewport com 500 tokens e imagem de 8192 px).
-- **Pronto quando**: a demo publicada abre na capa, o livro abre na biblioteca vazia, criar mundo vira a página até a área de importação; CI verde.
+- **Pronto quando**: o app rodando localmente abre na capa, o livro abre na biblioteca vazia, criar mundo vira a página até a área de importação; CI verde.
 
 ## Fase 1 — Front completo em modo local (8–10 semanas)
 | Marco | Entregas |
