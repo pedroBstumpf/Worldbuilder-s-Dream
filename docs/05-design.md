@@ -132,7 +132,14 @@ O usuário pode trocar a cor de cada entidade, a partir de uma paleta "de tintas
 | `couro-600` sobre `pergaminho-50` | 6,6 : 1 | texto secundário nas páginas |
 | `lacre` sobre `pergaminho-50` | 5,5 : 1 | erros nas páginas |
 | `lacre-claro` sobre `couro-900` | 5,6 : 1 | erros nas barras |
-| `ouro-700` sobre `pergaminho-50` | 4,2 : 1 | **somente** texto ≥ 24 px, ícones e ornamentos |
+| `ouro-700` sobre `pergaminho-50` | 4,2 : 1 | **somente** texto ≥ 24 px, ícones e ornamentos; anel de foco sobre pergaminho |
+| `couro-950` sobre `ouro-300` | 11,2 : 1 | botão primário em hover |
+| `pergaminho-100` sobre `couro-800` | 11,2 : 1 | botão secundário sobre couro |
+| `couro-900` sobre `pergaminho-200` | 11,0 : 1 | botão secundário sobre pergaminho |
+| `pergaminho-50` sobre `lacre` | 5,5 : 1 | rótulo do botão destrutivo |
+| `tinta` / `musgo` sobre `couro-900` | 3,9 / 5,2 : 1 | ícones de aviso (informação, sucesso) |
+
+Os controles secundário e fantasma usam os tokens `--wd-control-*`, que `.wd-page` redefine para as cores de pergaminho; dentro de `.wd-page` o anel de foco passa a `ouro-700`.
 
 Rótulos sobre o mapa: texto `pergaminho-50` com contorno `couro-950`, legível sobre qualquer imagem.
 

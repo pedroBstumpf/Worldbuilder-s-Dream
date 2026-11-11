@@ -101,6 +101,13 @@
 
   /* Página de pergaminho com fibras e vinheta. */
   .wd-page {
+    /* Sobre pergaminho, controles e anel de foco escurecem (contraste em docs/05). */
+    --wd-control-bg: var(--pergaminho-200);
+    --wd-control-bg-hover: var(--pergaminho-300);
+    --wd-control-text: var(--couro-900);
+    --wd-control-border: var(--wd-divider);
+    --wd-focus-ring: var(--ouro-700);
+
     background-color: var(--wd-page);
     background-image: var(--wd-vignette-page), var(--wd-texture-parchment);
     color: var(--wd-text-on-page);
