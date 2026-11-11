@@ -2,7 +2,8 @@
   "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
   "cli": {
-    "packageManager": "pnpm"
+    "packageManager": "pnpm",
+    "schematicCollections": ["angular-eslint"]
   },
   "newProjectRoot": "projects",
   "projects": {
@@ -52,14 +53,10 @@
                 "glob": "**/*",
                 "input": "src/assets",
                 "output": "assets",
-                "ignore": [
-                  "**/.gitkeep"
-                ]
+                "ignore": ["**/.gitkeep"]
               }
             ],
-            "styles": [
-              "src/styles/styles.css"
-            ]
+            "styles": ["src/styles/styles.css"]
           },
           "configurations": {
             "production": {
@@ -99,6 +96,12 @@
         },
         "test": {
           "builder": "@angular/build:unit-test"
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": ["src/**/*.ts", "src/**/*.html"]
+          }
         }
       }
     }

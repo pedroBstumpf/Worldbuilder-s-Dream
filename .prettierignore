@@ -1,0 +1,10 @@
+# Documentação é escrita à mão; não reformatar
+docs/
+*.md
+pnpm-lock.yaml
+dist/
+.angular/
+coverage/
+playwright-report/
+test-results/
+public/
