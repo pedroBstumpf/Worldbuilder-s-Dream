@@ -16,24 +16,12 @@
     "target": "ES2022",
     "module": "preserve",
     "paths": {
-      "@core/*": [
-        "./src/app/core/*"
-      ],
-      "@shared/*": [
-        "./src/app/shared/*"
-      ],
-      "@domain/*": [
-        "./src/app/domain/*"
-      ],
-      "@data/*": [
-        "./src/app/data-access/*"
-      ],
-      "@engine/*": [
-        "./src/app/map-engine/*"
-      ],
-      "@features/*": [
-        "./src/app/features/*"
-      ]
+      "@core/*": ["./src/app/core/*"],
+      "@shared/*": ["./src/app/shared/*"],
+      "@domain/*": ["./src/app/domain/*"],
+      "@data/*": ["./src/app/data-access/*"],
+      "@engine/*": ["./src/app/map-engine/*"],
+      "@features/*": ["./src/app/features/*"]
     }
   },
   "angularCompilerOptions": {
