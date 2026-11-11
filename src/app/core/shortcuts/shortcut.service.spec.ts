@@ -69,6 +69,21 @@ describe('ShortcutService', () => {
     remove();
   });
 
+  it('skips shortcuts whose condition is false, keeping the default', () => {
+    let drawing = false;
+    const calls: string[] = [];
+    const remove = service.register([
+      { key: 'enter', when: () => drawing, down: () => calls.push('close') },
+    ]);
+
+    expect(press('Enter').defaultPrevented).toBe(false);
+    drawing = true;
+    expect(press('Enter').defaultPrevented).toBe(true);
+
+    expect(calls).toEqual(['close']);
+    remove();
+  });
+
   it('handles held keys once until released', () => {
     const calls: string[] = [];
     const remove = service.register([
