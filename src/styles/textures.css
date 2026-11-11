@@ -1,0 +1,35 @@
+/*
+ * Texturas de couro e pergaminho (docs/05 › Texturas, bordas e ornamentos).
+ * Os SVG em src/assets/textures são provisórios (ruído procedural próprio) até a
+ * arte final em WebP/AVIF; basta trocar o arquivo apontado aqui.
+ */
+:root {
+  --wd-texture-leather: url('/assets/textures/leather.svg');
+  --wd-texture-parchment: url('/assets/textures/parchment.svg');
+  --wd-vignette-page: radial-gradient(
+    ellipse at center,
+    transparent 55%,
+    color-mix(in oklab, var(--couro-600) 22%, transparent) 100%
+  );
+}
+
+/* Alto contraste: sem texturas, bordas sólidas (preferência do sistema ou do app). */
+@media (prefers-contrast: more) {
+  :root {
+    --wd-texture-leather: none;
+    --wd-texture-parchment: none;
+    --wd-vignette-page: none;
+    --wd-rule: var(--ouro-500);
+    --wd-rule-inner: var(--ouro-500);
+    --wd-divider: var(--couro-500);
+  }
+}
+
+:root[data-contrast='more'] {
+  --wd-texture-leather: none;
+  --wd-texture-parchment: none;
+  --wd-vignette-page: none;
+  --wd-rule: var(--ouro-500);
+  --wd-rule-inner: var(--ouro-500);
+  --wd-divider: var(--couro-500);
+}
