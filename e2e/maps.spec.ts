@@ -147,6 +147,23 @@ test.describe('maps: import, tree, scale and links', () => {
     await expect(toast(page, /Escala definida: 1 px = .* léguas\./)).toBeVisible();
   });
 
+  test('renames the map from the title selector', async ({ page }) => {
+    await openNewWorld(page, 'Nomes');
+    await chooseFile(page, 'rascunho.png', 800, 600);
+    await expect(canvas(page, 'rascunho')).toBeVisible();
+
+    await page.getByRole('button', { name: /rascunho\s*, trocar de mapa/ }).click();
+    await page.getByRole('menuitem', { name: text.selector.rename }).click();
+    const dialog = page.getByRole('dialog', { name: text.rename.title });
+    await dialog.getByLabel(text.rename.name).fill('Reino de Valmora');
+    await dialog.getByRole('button', { name: text.rename.save }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect(canvas(page, 'Reino de Valmora')).toBeVisible();
+    await page.reload();
+    await expect(canvas(page, 'Reino de Valmora')).toBeVisible();
+  });
+
   test('bars collapse with shortcuts and remember it', async ({ page }) => {
     await openNewWorld(page, 'Barras');
     await chooseFile(page, 'barras.png', 800, 600);
