@@ -32,10 +32,11 @@ export const appConfig: ApplicationConfig = {
     { provide: ErrorHandler, useClass: AppErrorHandler },
     { provide: SUPABASE_CLIENT, useFactory: createSupabaseClient },
     // portas → implementações escolhidas no build (docs/10: front primeiro)
-    ...(env.dataSource === 'local' ? provideLocalDataAccess() : provideSupabaseDataAccess()),
+    ...provideDataAccess(),
   ],
 };
 ```
+- `provideDataAccess()` (`data-access/provide-data-access.ts`) escolhe os adaptadores por `environment.dataSource`. No build de produção, `angular.json › fileReplacements` troca esse arquivo por `provide-data-access.production.ts`, que **não importa** `data-access/local`: o IndexedDB e o login simulado ficam fora do bundle de produção.
 
 ## Rotas
 ```ts
@@ -53,7 +54,11 @@ export const routes: Routes = [
 ];
 ```
 - Usuário com sessão que acessa `/` vai para `/biblioteca` (abertura curta do livro).
-- **Modo local (demonstração)**: `provideLocalDataAccess()` registra os adaptadores IndexedDB e o `FakeAuthService` (o botão "Entrar com Google" só simula o login, para as animações funcionarem). Uma barra superior mostra o selo "Modo demonstração". O build de produção falha se `dataSource` for `local`.
+- **Modo local (demonstração)**: `provideLocalDataAccess()` registra os adaptadores IndexedDB e o `FakeAuthService` (o botão "Entrar com Google" só simula o login, para as animações funcionarem). O build de produção falha se `dataSource` for `local`.
+  - **Banco**: IndexedDB `worldbuilders-dream`, um *object store* por tabela do `docs/07`, com os mesmos modelos. Os adaptadores imitam o banco: `version` +1 e `updatedAt` a cada escrita, `conflict` para versão antiga ou chave única repetida, `not_found` para item ausente ou na lixeira, os padrões e os `check` do DDL (`local-checks.ts`; ao mudar um check numa migração, mude lá também). Nova tabela ou índice: incremente `LOCAL_DB_VERSION` e acrescente um passo no `upgrade`.
+  - **Usuário simulado**: "Visitante", com id fixo (os mundos continuam dele depois de sair e entrar). A sessão fica no `localStorage` (`wd:local-session`). Para recomeçar do zero: DevTools › Application › Storage › *Clear site data*.
+  - **Atraso e falha simulados**: `provideLocalDataAccess({ latencyMs, failureRate })` atrasa cada operação e faz uma fração delas falhar com `AppError('network')`, para exercitar os estados de carregamento e de erro.
+  - **Selo**: o token `DEMO_MODE` (`core/data-source`) fica verdadeiro e o app mostra `wd-demo-badge` ("Modo demonstração · dados só neste navegador") fixo no topo central, por cima do conteúdo, abaixo dos diálogos e sem receber cliques. Quando a barra superior do livro existir, o selo passa para ela. O `DEMO_MODE` serve só para selo e avisos; os dados vêm sempre das portas.
 - Estado compartilhável na URL do mundo: `/w/:worldId?map=<id>&t=<tick>&sel=<entityId>`.
 - `worldAccessGuard` só melhora a UX; **a segurança real é o RLS**.
 
@@ -97,6 +102,7 @@ Todos em `shared/ui/`, standalone, `OnPush`, estilizados com Tailwind e tokens `
 | `wd-toast` + `ToastService` | CDK Overlay + `LiveAnnouncer` | substitui snackbar; `show({ message, kind, action })`; anuncia uma vez (erro como `assertive`), some em 5 s (8 s com ação), pausa no hover e no foco, no máximo 3; ação "Desfazer" quando couber |
 | `wd-popover` | CDK Overlay (posição conectada) | popover do mapa (`docs/05`) |
 | `wd-drop-zone` | diretiva própria | área de importação de mapa |
+| `wd-demo-badge` | `<span>`s com `role="note"` | selo do modo demonstração; textos por input (`label`, `detail`) |
 | `wd-virtual-list` | `cdk-virtual-scroll-viewport` | listas longas do Explorar |
 
 - **Ícones**: `<wd-icon name="…">` (Material Symbols Rounded, peso 300), sempre `aria-hidden`; o nome acessível fica no controle.
