@@ -135,6 +135,8 @@ module.exports = defineConfig([
     files: ['**/*.html'],
     extends: [angular.configs.templateRecommended, angular.configs.templateAccessibility],
     rules: {
+      // Em <button wd-icon-button>, o input `label` vira o aria-label (shared/ui).
+      '@angular-eslint/template/elements-content': ['error', { allowList: ['label'] }],
       // [innerHTML] e [outerHTML] em templates (AGENTS.md)
       'no-restricted-syntax': [
         'error',
