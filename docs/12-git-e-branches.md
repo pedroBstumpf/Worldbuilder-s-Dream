@@ -192,7 +192,7 @@ Cada linha é **uma branch**. A coluna "Ler" diz quais documentos o Claude preci
 | ✓ | ID | Branch | Entrega | Ler |
 |---|----|--------|---------|-----|
 | [x] | F0-01 | `chore/f0-01-bootstrap-angular` | Workspace Angular 22 (pnpm, zoneless, TS strict, aliases, pastas do `docs/03`), ESLint/Prettier/Stylelint com fronteiras de camadas, Vitest, Playwright, lefthook + numeração + commitlint, `CLAUDE.md`/`AGENTS.md` | 03, 04, 12 |
-| [ ] | F0-02 | `ci/f0-02-ci-and-demo-deploy` | Workflow de CI (lint, testes, build, budgets, guarda de `dataSource`), deploy da demo no Cloudflare Pages, `_headers` com CSP da demo, template de PR | 03, 09, 12 |
+| [ ] | F0-02 | `ci/f0-02-ci-workflow` | Workflow de CI (lint, typecheck, testes, build, budgets, guarda de `dataSource`, e2e + axe), template de PR. Sem demo publicada: as prévias ao cliente são vídeos de tela | 03, 09, 12 |
 | [ ] | F0-03 | `feat/f0-03-design-tokens` | Paleta, tokens `--wd-*`, `@theme` do Tailwind, fontes auto-hospedadas, texturas, classes `.wd-panel`/`.wd-page` | 05 |
 | [ ] | F0-04 | `feat/f0-04-ui-base` | `shared/ui`: botão, ícone-botão, tooltip, diálogo, toast; página interna `/dev` | 04, 05 |
 | [ ] | F0-05 | `feat/f0-05-domain-core` | `domain/`: modelos (iguais ao `docs/07`), portas, calendário e interpolação com testes | 06, 07 |

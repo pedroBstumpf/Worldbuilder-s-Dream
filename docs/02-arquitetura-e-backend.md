@@ -145,9 +145,10 @@ Imagem solta na janela → validação e conversão para WebP num Web Worker →
 ## Ambientes e configuração
 | Ambiente | Front | Supabase | Uso |
 |----------|-------|----------|-----|
-| `demo` (Fases 0–1) | Cloudflare Pages (`*.pages.dev`), `dataSource: 'local'` | — (dados no IndexedDB do navegador, login simulado) | Apresentar o front ao cliente antes do back-end |
 | `local` | `ng serve` (`dataSource: 'local'` ou `'supabase'`) | `supabase start` (Docker), banco vazio | Desenvolvimento e testes |
 | `production` | Cloudflare Pages (domínio próprio) | projeto `wbdream` (plano gratuito, região `sa-east-1`) | Uso real |
+
+Não há demo publicada: nas Fases 0–1, o cliente acompanha o progresso por **vídeos de tela** do app rodando localmente em modo local (`dataSource: 'local'`, dados no IndexedDB, login simulado).
 
 A ordem de construção (front primeiro, com adaptadores locais) está em [`docs/10`](10-roadmap.md). Não há staging nem deploys de preview: com poucos usuários, os testes locais (incluindo pgTAP e e2e contra o Supabase local) cumprem esse papel.
 

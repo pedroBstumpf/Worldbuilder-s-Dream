@@ -9,7 +9,7 @@ Este guia é para a pessoa que **administra** o Worldbuilder's Dream: quem cria 
 | 1 | Configurar o gerenciador de senhas (Bitwarden) | **Agora** | 20 min |
 | 2 | Proteger a conta Google (2FA/passkey + códigos de recuperação) | **Agora** | 10 min |
 | 3 | Criar conta no GitHub (repositório privado) | Início do front (Fase 1) | 10 min |
-| 4 | Criar conta no Cloudflare (hospedagem da demonstração e do app) | Início do front (Fase 1) | 10 min |
+| 4 | Criar conta no Cloudflare (hospedagem do app) | Antes do lançamento (Fase 2) | 10 min |
 | 5 | Registrar o domínio | Antes do back-end (Fase 2) | 15 min + propagação |
 | 6 | Criar o projeto no Supabase | Início do back-end (Fase 2) | 15 min |
 | 7 | Configurar o Google Cloud (login, Docs, Drive, Picker) | Início do back-end (Fase 2) | 40 min |
@@ -99,7 +99,7 @@ A conta Google é a única forma de entrar no app, guarda os textos (Docs) e a p
 
 ## 4. Cloudflare (hospedagem)
 1. Crie a conta em **cloudflare.com** e ative o 2FA.
-2. A pessoa desenvolvedora conecta o repositório ao **Cloudflare Pages**. Durante o desenvolvimento do front, o endereço `*.pages.dev` já serve para mostrar a demonstração.
+2. A pessoa desenvolvedora conecta o repositório ao **Cloudflare Pages** (tarefa F2-07). Antes disso não há versão publicada: as prévias do app são vídeos de tela.
 
 ## 5. Domínio
 1. Registre o domínio (ex.: no **registro.br** para `.com.br`, ou no próprio Cloudflare Registrar para `.com`). Guarde a senha no Bitwarden.
