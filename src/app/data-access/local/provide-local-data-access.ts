@@ -1,4 +1,5 @@
 import { makeEnvironmentProviders, type EnvironmentProviders } from '@angular/core';
+import { DEMO_MODE } from '@core/data-source/demo-mode';
 import {
   AssetRepository,
   AuthService,
@@ -29,6 +30,7 @@ export function provideLocalDataAccess(
 ): EnvironmentProviders {
   return makeEnvironmentProviders([
     { provide: LOCAL_DATA_OPTIONS, useValue: { ...DEFAULT_LOCAL_DATA_OPTIONS, ...options } },
+    { provide: DEMO_MODE, useValue: true },
     LocalDatabase,
     { provide: AuthService, useClass: FakeAuthService },
     { provide: WorldRepository, useClass: LocalWorldRepository },
