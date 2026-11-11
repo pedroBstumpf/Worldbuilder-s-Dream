@@ -162,6 +162,7 @@ Registrados num `ShortcutService` (`core/shortcuts`) com escopo, desativados qua
 | `P` | Marcar ponto |
 | `R` | Régua |
 | `B` | Pincel |
+| `E` | Borracha |
 | `G` | Região |
 | `X` | Rótulo |
 | `[` / `]` | Recolher barra esquerda / direita |

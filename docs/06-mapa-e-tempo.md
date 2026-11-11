@@ -44,7 +44,7 @@ export interface MapEngine {
   worldToScreen(p: Point): Point;
   focus(target: { tokenId?: string; point?: Point; zoom?: number }, animate?: boolean): void;
   fitToMap(animate?: boolean): void;
-  zoomBy(factor: number): void;                        // botões e teclado
+  zoomBy(factor: number): void;                        // teclado (+ e −)
   panBy(dx: number, dy: number): void;                 // setas, em px de tela
   readonly camera: Camera;                             // { center, zoom }
 
@@ -178,7 +178,8 @@ senão:
 | **Mover mapa** (H) | pan; também com botão do meio, `Espaço`+arrastar, dois dedos | não persiste (câmera salva por usuário/mapa em `ui_prefs`) |
 | **Marcar ponto** (P) | clique cria pino com título, ícone, cor e vínculo opcional a entidade/evento | `map_annotations` (`kind='pin'`) |
 | **Régua** (R) | cliques encadeados medem segmentos; total na unidade do mapa; `Esc` limpa; opção "fixar medição" | opcional (`kind='measure'`) |
-| **Pincel** (B) | traço vetorial suavizado (`perfect-freehand`), cor, espessura, opacidade; borracha | `map_annotations` (`kind='stroke'`) |
+| **Pincel** (B) | traço vetorial suavizado (`perfect-freehand`); linha **contínua ou pontilhada**; cor da paleta "de tintas antigas", espessura, opacidade | `map_annotations` (`kind='stroke'`, estilo em `style`) |
+| **Borracha** (E) | passar sobre um traço o apaga (desfazer disponível) | remove `map_annotations` (`kind='stroke'`) |
 | **Região** (G) | polígono preenchido (territórios) | `kind='region'` |
 | **Texto** (X) | rótulo livre no mapa | `kind='label'` |
 
