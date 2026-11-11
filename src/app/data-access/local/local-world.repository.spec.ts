@@ -44,7 +44,9 @@ describe('LocalWorldRepository', () => {
     const trashed = await create('Lixo');
     await worlds.moveToTrash(trashed.id, 1);
 
-    expect((await worlds.list()).map((world) => world.id)).toEqual([first.id, second.id]);
+    // Criados no mesmo milissegundo, a ordem entre eles não é garantida.
+    const ids = (await worlds.list()).map((world) => world.id);
+    expect(ids.sort()).toEqual([first.id, second.id].sort());
   });
 
   it('requires a signed-in user', async () => {
