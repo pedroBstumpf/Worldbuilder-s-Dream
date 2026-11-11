@@ -110,6 +110,9 @@
     --wd-control-bg-hover: var(--pergaminho-300);
     --wd-control-text: var(--couro-900);
     --wd-control-border: var(--wd-divider);
+    --wd-control-muted: var(--couro-600);
+    --wd-control-selected: var(--couro-900);
+    --wd-control-selected-rule: var(--ouro-700);
     --wd-focus-ring: var(--ouro-700);
 
     background-color: var(--wd-page);

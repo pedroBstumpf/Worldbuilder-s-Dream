@@ -37,6 +37,9 @@
   --wd-control-bg-hover: var(--couro-700);
   --wd-control-text: var(--pergaminho-100);
   --wd-control-border: var(--wd-rule);
+  --wd-control-muted: var(--wd-text-muted);
+  --wd-control-selected: var(--wd-accent);
+  --wd-control-selected-rule: var(--wd-accent);
 
   /* Ícones (fonte em fonts.css) */
   --wd-font-icon: 'Material Symbols Rounded';
