@@ -60,9 +60,14 @@ export async function requireUserId(auth: AuthService): Promise<Uuid> {
   return user.id;
 }
 
-/** Remove chaves com `undefined`, para um patch não apagar campos que não mencionou. */
-export function definedOnly<T extends object>(patch: T): Partial<T> {
-  return Object.fromEntries(
-    Object.entries(patch).filter(([, value]) => value !== undefined),
-  ) as Partial<T>;
+/**
+ * Remove chaves com `undefined`, para um rascunho ou patch não sobrescrever padrões e
+ * campos que não mencionou (`{ tickEnd: undefined }` não vira `tickEnd: undefined`).
+ */
+export function definedOnly<T extends object>(value: T): WithoutUndefined<T> {
+  const entries = Object.entries(value).filter(([, field]) => field !== undefined);
+  return Object.fromEntries(entries) as WithoutUndefined<T>;
 }
+
+/** Os mesmos campos (obrigatórios continuam obrigatórios), sem `undefined` nos valores. */
+export type WithoutUndefined<T> = { [K in keyof T]: Exclude<T[K], undefined> };
