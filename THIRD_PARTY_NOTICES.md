@@ -13,6 +13,14 @@ Fontes variáveis, só o subset latino, obtidas do [Fontsource](https://fontsour
 | Inter | © 2016 The Inter Project Authors (https://github.com/rsms/inter) | `src/assets/fonts/inter/` |
 | JetBrains Mono | © 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono) | `src/assets/fonts/jetbrains-mono/` |
 
+### Ícones
+
+Material Symbols Rounded, peso 300 estático, subset latino, obtido do Fontsource (pacote `@fontsource/material-symbols-rounded` 5.3.9), sob a [SIL Open Font License 1.1](https://openfontlicense.org) conforme distribuído pelo pacote.
+
+| Fonte | Copyright | Arquivos |
+|-------|-----------|----------|
+| Material Symbols Rounded | © Google Inc. (https://github.com/google/material-design-icons) | `src/assets/fonts/material-symbols-rounded/` |
+
 ## Componentes portados (Skiper UI, Magic UI)
 
 Nenhum ainda.
