@@ -1,0 +1,261 @@
+<main class="flex flex-col gap-6 py-8">
+  <header class="mx-auto flex w-full max-w-5xl flex-col gap-2 px-6">
+    <h1 class="wd-inscription text-3xl text-ouro-400">{{ text.title }}</h1>
+    <p class="font-book text-lg text-pergaminho-400">{{ text.intro }}</p>
+  </header>
+
+  <!-- Cena: o livro é um único objeto 3D que muda de estado (ADR-0011). -->
+  <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events -->
+  <div
+    #scene
+    class="poc-scene"
+    role="group"
+    [attr.aria-label]="text.scene"
+    [attr.aria-busy]="busy()"
+    [attr.data-state]="state()"
+    (click)="onSceneClick($event)"
+  >
+    <div class="poc-book">
+      <!-- Página revelada pela virada: o mapa do mundo em página inteira. -->
+      <section class="poc-map-page wd-page" aria-labelledby="poc-map-title" [inert]="!isTurned()">
+        <div class="poc-map-frame">
+          <svg class="poc-map-art" viewBox="0 0 200 260" aria-hidden="true">
+            <path
+              class="poc-map-land"
+              d="M30 40 C60 20 90 30 110 50 C140 40 170 60 165 95 C185 120 170 150 150 160 C160 190 140 225 105 220 C80 240 45 225 40 195 C15 175 20 140 35 125 C15 100 15 60 30 40 Z"
+            />
+            <path
+              class="poc-map-river"
+              d="M110 50 C100 90 125 110 105 140 C90 165 110 190 105 220"
+            />
+            <path class="poc-map-river" d="M35 125 C60 130 80 120 105 140" />
+            <g class="poc-map-rose" transform="translate(165 225)">
+              <path d="M0 -14 L3 0 L0 14 L-3 0 Z" />
+              <path d="M-14 0 L0 -3 L14 0 L0 3 Z" />
+            </g>
+          </svg>
+        </div>
+        <h2
+          #mapHeading
+          id="poc-map-title"
+          class="wd-inscription text-center text-xl text-couro-900"
+          tabindex="-1"
+        >
+          {{ text.map.title }}
+        </h2>
+        <p class="text-center font-book text-sm text-couro-600 italic">{{ text.map.note }}</p>
+        <div class="poc-shade poc-shade-from-spine"></div>
+      </section>
+
+      <!-- Folha direita (frontispício), virada rígida. -->
+      <div class="poc-leaf" [class.poc-invisible]="showStrips()">
+        <div class="poc-face poc-face-front wd-page" [inert]="!isOpen()">
+          <ng-container *ngTemplateOutlet="frontispiece; context: { $implicit: false }" />
+          <div class="poc-shade poc-shade-from-edge"></div>
+        </div>
+        <div class="poc-face poc-face-back wd-page" aria-hidden="true"></div>
+      </div>
+
+      <!-- Virada curvada: a mesma folha em faixas encadeadas (cópias decorativas). -->
+      <div class="poc-strips" [class.poc-invisible]="!showStrips()" aria-hidden="true" inert>
+        <ng-container *ngTemplateOutlet="strip; context: { $implicit: 0 }" />
+      </div>
+
+      <!-- Capa: frente em couro; verso com o sumário (livro aberto). -->
+      <div class="poc-cover">
+        <div class="poc-face poc-face-front poc-leather" [inert]="state() !== 'closed'">
+          <svg class="poc-rose" viewBox="-50 -50 100 100" aria-hidden="true">
+            <circle r="44" class="poc-rose-ring" />
+            <circle r="36" class="poc-rose-ring" />
+            <path class="poc-rose-point" d="M0 -46 L7 0 L0 46 L-7 0 Z" />
+            <path class="poc-rose-point" d="M-46 0 L0 -7 L46 0 L0 7 Z" />
+            <path
+              class="poc-rose-minor"
+              d="M-26 -26 L4 -4 L26 26 L-4 4 Z M26 -26 L4 4 L-26 26 L-4 -4 Z"
+            />
+            <circle r="4" class="poc-rose-hub" />
+          </svg>
+          <div class="poc-plaque wd-page">
+            <p class="wd-inscription text-center text-2xl text-ouro-700">{{ text.cover.title }}</p>
+            <p class="text-center font-book text-couro-600 italic">{{ text.cover.tagline }}</p>
+            <button
+              wd-button
+              variant="primary"
+              type="button"
+              [disabled]="busy()"
+              (click)="signIn()"
+            >
+              {{ state() === 'authenticating' ? text.cover.signingIn : text.cover.signIn }}
+            </button>
+          </div>
+        </div>
+        <section
+          class="poc-face poc-face-back wd-page poc-left-page"
+          aria-labelledby="poc-library-title"
+          [inert]="!isOpen() && !isTurned()"
+        >
+          <p class="font-book text-sm text-couro-600 italic">{{ text.library.exLibris }}</p>
+          <h2
+            #libraryHeading
+            id="poc-library-title"
+            class="wd-inscription text-xl text-couro-900"
+            tabindex="-1"
+          >
+            {{ text.library.heading }}
+          </h2>
+          <ol class="flex flex-col gap-2 font-book text-couro-900">
+            @for (world of text.library.worlds; track world.name) {
+              <li class="poc-toc-item">
+                <span>{{ world.name }}</span>
+                <span class="poc-toc-dots" aria-hidden="true"></span>
+                <span class="text-sm text-couro-600">{{ world.date }}</span>
+              </li>
+            }
+          </ol>
+          <div class="poc-shade poc-shade-to-spine"></div>
+        </section>
+      </div>
+
+      <div class="poc-clasp" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <p class="sr-only" aria-live="polite">{{ announcement() }}</p>
+
+  <!-- Controles e resultados. -->
+  <section class="mx-auto flex w-full max-w-5xl flex-col gap-4 px-6" aria-labelledby="poc-controls">
+    <h2 id="poc-controls" class="wd-inscription text-xl text-pergaminho-100">
+      {{ text.controls.heading }}
+    </h2>
+    <div class="wd-panel flex flex-wrap items-start gap-8 p-6">
+      <fieldset class="flex flex-col gap-2" [disabled]="busy()">
+        <legend class="mb-2 font-sans text-sm font-semibold">{{ text.controls.variant }}</legend>
+        @for (option of variants; track option) {
+          <label class="flex items-center gap-2 font-sans text-sm">
+            <input
+              type="radio"
+              name="poc-variant"
+              [checked]="variant() === option"
+              (change)="setVariant(option)"
+            />
+            {{ text.controls.variants[option] }}
+          </label>
+        }
+      </fieldset>
+      <fieldset class="flex flex-col gap-2" [disabled]="busy()">
+        <legend class="mb-2 font-sans text-sm font-semibold">{{ text.controls.mode }}</legend>
+        @for (option of modes; track option) {
+          <label class="flex items-center gap-2 font-sans text-sm">
+            <input
+              type="radio"
+              name="poc-mode"
+              [checked]="mode() === option"
+              (change)="setMode(option)"
+            />
+            {{ text.controls.modes[option] }}
+          </label>
+        }
+      </fieldset>
+      <div class="flex flex-col gap-2">
+        <p class="font-sans text-sm">
+          {{ text.controls.state }}:
+          <code class="font-mono" data-testid="poc-state">{{ state() }}</code>
+        </p>
+        <button wd-button type="button" [disabled]="busy()" (click)="restart()">
+          {{ text.controls.reset }}
+        </button>
+      </div>
+    </div>
+
+    <h3 class="font-sans text-sm font-semibold text-pergaminho-100">
+      {{ text.controls.results }}
+    </h3>
+    @if (results().length === 0) {
+      <p class="font-sans text-sm text-pergaminho-400">{{ text.controls.empty }}</p>
+    } @else {
+      <div class="wd-panel overflow-x-auto p-2">
+        <table class="poc-results w-full font-mono text-xs">
+          <thead>
+            <tr>
+              <th scope="col">{{ text.controls.columns.phase }}</th>
+              <th scope="col">{{ text.controls.columns.duration }}</th>
+              <th scope="col">{{ text.controls.columns.fps }}</th>
+              <th scope="col">{{ text.controls.columns.p95 }}</th>
+              <th scope="col">{{ text.controls.columns.worst }}</th>
+              <th scope="col">{{ text.controls.columns.long }}</th>
+              <th scope="col">{{ text.controls.columns.first }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of results(); track $index) {
+              <tr
+                data-testid="poc-result"
+                [attr.data-phase]="row.phase"
+                [attr.data-variant]="row.variant"
+                [attr.data-mode]="row.mode"
+                [attr.data-stats]="row.stats | json"
+              >
+                <th scope="row">
+                  {{ row.phase }}
+                  @if (row.phase === 'turning') {
+                    ({{ row.variant }})
+                  }
+                  · {{ row.mode }}
+                </th>
+                <td>{{ row.stats.durationMs }}</td>
+                <td>{{ row.stats.avgFps }}</td>
+                <td>{{ row.stats.p95FrameMs }}</td>
+                <td>{{ row.stats.worstFrameMs }}</td>
+                <td>{{ row.stats.longFramePct }}%</td>
+                <td>{{ row.stats.firstFrameMs }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</main>
+
+<!-- Frontispício do mundo; `copy` = cópia decorativa dentro das faixas. -->
+<ng-template #frontispiece let-copy>
+  <div class="poc-frontispiece">
+    <div class="poc-thumb" aria-hidden="true">
+      <svg viewBox="0 0 200 140">
+        <path
+          class="poc-map-land"
+          d="M30 30 C60 10 100 20 120 35 C150 25 180 45 170 75 C185 100 150 125 115 115 C85 135 45 125 35 100 C15 85 15 50 30 30 Z"
+        />
+        <path class="poc-map-river" d="M120 35 C105 60 130 80 115 115" />
+      </svg>
+    </div>
+    <p class="wd-inscription text-center text-2xl text-couro-900">{{ text.library.worldName }}</p>
+    <p class="text-center font-book text-couro-600 italic">{{ text.library.worldDescription }}</p>
+    <p class="text-center font-sans text-xs text-couro-600">{{ text.library.worldCounts }}</p>
+    @if (copy) {
+      <span [class]="copyButtonClasses">{{ text.library.open }}</span>
+    } @else {
+      <button wd-button variant="primary" type="button" (click)="openWorld()">
+        {{ text.library.open }}
+      </button>
+    }
+  </div>
+</ng-template>
+
+<!-- Uma faixa da folha curvada; a próxima é filha desta (dobra em cadeia). -->
+<ng-template #strip let-i>
+  <div class="poc-strip" [style.--poc-i]="i">
+    <div class="poc-face poc-face-front">
+      <div class="poc-strip-content wd-page">
+        <ng-container *ngTemplateOutlet="frontispiece; context: { $implicit: true }" />
+      </div>
+      <div class="poc-shade poc-shade-from-edge"></div>
+    </div>
+    <div class="poc-face poc-face-back">
+      <div class="poc-strip-back wd-page"></div>
+    </div>
+    @if (i < stripIndexes.length - 1) {
+      <ng-container *ngTemplateOutlet="strip; context: { $implicit: i + 1 }" />
+    }
+  </div>
+</ng-template>
