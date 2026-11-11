@@ -200,7 +200,7 @@ Cada linha é **uma branch**. A coluna "Ler" diz quais documentos o Claude preci
 | [x] | F0-05 | `feat/f0-05-domain-core` | `domain/`: modelos (iguais ao `docs/07`), portas, calendário e interpolação com testes | 06, 07 |
 | [x] | F0-06 | `feat/f0-06-local-data` | `data-access/local` (IndexedDB), `FakeAuthService`, `provideLocalDataAccess`, selo de modo demonstração | 04, 10 |
 | [x] | F0-07 | `spike/f0-07-book-poc` | Prova de conceito: capa → abertura → virada de página; medir fps; registrar a decisão no ADR-0011 | 05, ADR-0011 |
-| [ ] | F0-08 | `feat/f0-08-book-shell` | **Livro**: `BookShell`, capa (login simulado), biblioteca vazia, criar mundo → shell do mapa; abertura, virada e zoom até o mapa (View Transition), transições sempre completas (fade no movimento reduzido) e detecção de fps baixo. Parte do `/dev/livro`, que é removido. **Marco da Fase 0** | 04, 05, ADR-0011 |
+| [x] | F0-08 | `feat/f0-08-book-shell` | **Livro**: `BookShell`, capa (login simulado), biblioteca vazia, criar mundo → shell do mapa; abertura, virada e zoom até o mapa (View Transition), transições sempre completas (fade no movimento reduzido) e detecção de fps baixo. Parte do `/dev/livro`, que é removido. **Marco da Fase 0** | 04, 05, ADR-0011 |
 
 ### Fase 1 — Front completo em modo local
 Uma branch por marco do `docs/10`. Cada tarefa entrega telas reais do app (sem páginas de teste); os componentes novos de `shared/ui` nascem dentro da tela que os usa.
