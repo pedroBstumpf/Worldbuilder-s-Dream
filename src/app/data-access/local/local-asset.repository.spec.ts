@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import type { Mock } from 'vitest';
 import type { Asset } from '@domain/models';
 import { AssetRepository } from '@domain/ports';
 import { FAKE_USER } from './fake-auth.service';
@@ -9,16 +10,16 @@ const worldId = crypto.randomUUID();
 describe('LocalAssetRepository', () => {
   let assets: AssetRepository;
   let teardown: () => Promise<void>;
-  let createObjectURL: ReturnType<typeof vi.fn>;
-  let revokeObjectURL: ReturnType<typeof vi.fn>;
+  let createObjectURL: Mock<typeof URL.createObjectURL>;
+  let revokeObjectURL: Mock<typeof URL.revokeObjectURL>;
   let original: { create: typeof URL.createObjectURL; revoke: typeof URL.revokeObjectURL };
 
   beforeEach(async () => {
     ({ teardown } = await setUpLocalTestBed());
     assets = TestBed.inject(AssetRepository);
     // O jsdom não implementa object URLs: troca pelas funções falsas e devolve no fim.
-    createObjectURL = vi.fn((blob: Blob) => `blob:test/${blob.size}`);
-    revokeObjectURL = vi.fn();
+    createObjectURL = vi.fn<typeof URL.createObjectURL>(() => `blob:test/${crypto.randomUUID()}`);
+    revokeObjectURL = vi.fn<typeof URL.revokeObjectURL>();
     original = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
     URL.createObjectURL = createObjectURL;
     URL.revokeObjectURL = revokeObjectURL;
