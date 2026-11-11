@@ -313,7 +313,7 @@ Se os dados ainda não chegaram, a página mostra a miniatura com a rosa dos ven
 - `prefers-reduced-motion: reduce` → fade cruzado de 150 ms.
 - Links diretos (`/w/:id?t=…`) abrem o mapa sem animação.
 - Ao fim de cada transição o foco vai para o título da nova tela e uma região `aria-live` anuncia "Biblioteca de mundos" ou "Mapa: <nome>".
-- `will-change` só durante a animação; se o primeiro quadro demorar demais (fps baixo), usa-se automaticamente a versão curta.
+- `will-change` só durante a animação e só na propriedade animada (`will-change: opacity` achata o `preserve-3d` do livro); se o primeiro quadro demorar demais (fps baixo), usa-se automaticamente a versão curta.
 
 ## Componentes animados: Skiper UI + Magic UI
 | Catálogo | Stack original | Licença (gratuitos) |
