@@ -1,8 +1,8 @@
-import { Component, input } from '@angular/core';
+import { booleanAttribute, Component, input } from '@angular/core';
 
 /**
  * Selo discreto do modo demonstração (docs/10, regra 4): pílula de couro fixa no topo,
- * acima do conteúdo e abaixo dos diálogos. Não recebe cliques (`pointer-events: none`),
+ * acima do conteúdo e abaixo dos diálogos; com `inline`, fica no fluxo (barra superior). Não recebe cliques (`pointer-events: none`),
  * para nunca cobrir um controle. Quem decide se aparece é o app (token `DEMO_MODE`).
  */
 @Component({
@@ -17,9 +17,9 @@ import { Component, input } from '@angular/core';
   host: {
     role: 'note',
     class:
-      'pointer-events-none fixed top-2 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 ' +
-      'rounded-full border border-(--wd-rule) bg-couro-900/90 px-3 py-1 text-xs ' +
-      'whitespace-nowrap shadow-panel',
+      'pointer-events-none flex items-center gap-2 rounded-full border border-(--wd-rule) ' +
+      'bg-couro-900/90 px-3 py-1 text-xs whitespace-nowrap shadow-panel',
+    '[class]': "inline() ? '' : floating",
   },
 })
 export class DemoBadgeComponent {
@@ -27,4 +27,8 @@ export class DemoBadgeComponent {
   readonly label = input.required<string>();
   /** Complemento; em telas estreitas fica só para leitores de tela. */
   readonly detail = input('');
+  /** Dentro de uma barra, no fluxo do layout, em vez de flutuar no topo. */
+  readonly inline = input(false, { transform: booleanAttribute });
+
+  protected readonly floating = 'fixed top-2 left-1/2 z-50 -translate-x-1/2';
 }
