@@ -47,9 +47,13 @@ module.exports = defineConfig([
         'error',
         { type: 'attribute', prefix: 'wd', style: 'camelCase' },
       ],
+      // Elemento (wd-icon) ou atributo sobre elemento nativo (button[wd-button]).
       '@angular-eslint/component-selector': [
         'error',
-        { type: 'element', prefix: 'wd', style: 'kebab-case' },
+        [
+          { type: 'element', prefix: 'wd', style: 'kebab-case' },
+          { type: 'attribute', prefix: 'wd', style: 'kebab-case' },
+        ],
       ],
       'no-console': 'error',
       // Classes de componente/serviço Angular podem ser vazias (o decorator é o conteúdo).
