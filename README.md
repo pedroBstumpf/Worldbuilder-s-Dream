@@ -40,15 +40,21 @@ Couro marrom (`#2b1c12`) · pergaminho bege (`#efe3c8`) · ouro para o que impor
 
 **Cursor** com a extensão **Claude Code** (lê o `CLAUDE.md`, que importa o `AGENTS.md`), **Git** instalado no sistema e **GitHub Desktop** para revisar e enviar. Fluxo em [docs/12](docs/12-git-e-branches.md).
 
-## Como começar (quando o código existir)
+## Como começar
 
 ```bash
-# pré-requisitos: Node LTS, pnpm, Docker, Supabase CLI
-pnpm install
+# pré-requisitos: Node >= 24.15, pnpm (corepack enable), Git
+pnpm install                   # também instala os hooks do Git (lefthook)
+pnpm exec playwright install chromium   # uma vez, para os testes e2e
+pnpm start                     # http://localhost:4200
+```
+
+A partir da Fase 2 (back-end), também Docker e Supabase CLI:
+
+```bash
 supabase start                 # Postgres/Auth/Storage locais
 supabase db reset              # aplica as migrações (banco vazio, sem dados de exemplo)
 pnpm gen:types                 # tipos TS a partir do schema
-pnpm start                     # http://localhost:4200
 ```
 Variáveis de ambiente: [docs/02 › Ambientes](docs/02-arquitetura-e-backend.md#ambientes-e-configuração).
 

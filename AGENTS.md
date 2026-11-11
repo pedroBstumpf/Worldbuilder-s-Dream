@@ -31,12 +31,14 @@ Uma tarefa = uma branch (`<tipo>/<id>-<descricao>`), criada do `main` atualizado
 
 ## Comandos
 ```bash
-pnpm start          # dev server
-pnpm test           # Vitest
+pnpm start          # dev server (http://localhost:4200)
+pnpm build          # build de produção
+pnpm test           # Vitest (uma execução; `pnpm test:watch` para modo contínuo)
 pnpm e2e            # Playwright (+ axe)
-pnpm lint           # ESLint + Prettier
-pnpm db:test        # pgTAP
-pnpm gen:types      # tipos do banco
+pnpm lint           # ESLint (com fronteiras de camadas) + Prettier + Stylelint
+pnpm format         # corrige formatação (Prettier + Stylelint)
+pnpm db:test        # pgTAP (a partir da Fase 2)
+pnpm gen:types      # tipos do banco (a partir da Fase 2)
 ```
 
 ## Definição de pronto
