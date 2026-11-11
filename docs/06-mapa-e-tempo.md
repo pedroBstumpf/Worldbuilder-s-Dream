@@ -102,7 +102,13 @@ Cada mundo tem um calendário (JSON validado por schema) que converte ticks ⇄ 
 }
 ```
 - `domain/calendar` implementa `toDate(tick)`, `fromDate(parts)`, `format(tick, precision)`, `startOf(unit, tick)` e `add(unit, n, tick)`. É TS puro e tem cobertura de testes alta (incluindo anos bissextos e eras negativas).
-- Um calendário "Gregoriano simplificado" é o padrão ao criar o mundo.
+  - Uso: `new Calendar(parseCalendarDefinition(json))`; o schema (zod) é `calendarDefinitionSchema`.
+  - **Ano astronômico** nas contas: o ano 0 é o da época (contém o tick 0); negativos vêm antes.
+  - **Bissexto** quando `ano mod everyYears = 0`, também para anos negativos; o dia extra entra no mês `leap.monthIndex`.
+  - **Eras sem ano zero**: as eras ficam em ordem crescente de `startYear` e a primeira também cobre os anos anteriores. Numa era `forward` (padrão), `startYear` é exibido como 1. Numa era `backward`, a contagem desce até o início da era seguinte (o ano anterior a ela é 1), como "a.C.". Por isso uma era `backward` nunca é a última.
+  - **Modelos de texto**: `format` vale para a precisão de dia; `formats` sobrescreve as outras (padrões em português: `{year} {era}`, `{month} de {year} {era}`…). Tokens: `{day}`, `{month}`, `{monthNumber}`, `{year}`, `{era}`, `{eraName}`, `{weekday}`, `{hour}`, `{minute}`.
+  - `add` em meses e anos mantém o dia e, se ele não existir no destino, usa o último dia do mês (31 de janeiro + 1 mês = 28 ou 29 de fevereiro).
+- Um calendário "Gregoriano simplificado" (`DEFAULT_CALENDAR`) é o padrão ao criar o mundo: meses gregorianos, bissexto a cada 4 anos (o ano da época, 1 EC, é bissexto), eras AEC/EC, e a época cai num domingo.
 - Precisão de exibição adapta-se ao zoom da timeline (era, ano, mês, dia, hora).
 
 ### Faixa do mundo
