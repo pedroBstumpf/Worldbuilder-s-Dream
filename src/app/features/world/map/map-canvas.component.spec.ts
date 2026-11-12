@@ -54,6 +54,11 @@ function scene(links: MapScene['links'] = []): MapScene {
       (tokenOpen)="openedTokens.push($event)"
       (tokenMenu)="menus.push($event)"
       (entityDropped)="dropped.push($event)"
+      [activeAnnotation]="active()"
+      (annotationCreated)="created.push($event)"
+      (annotationChanged)="changed.push($event)"
+      (annotationErased)="erased.push($event)"
+      (annotationPicked)="pickedAnnotations.push($event)"
     />
   `,
 })
@@ -75,6 +80,11 @@ class HostComponent {
   readonly openedTokens: string[] = [];
   readonly menus: unknown[] = [];
   readonly dropped: { entityId: string; point: Point }[] = [];
+  readonly active = signal<string | null>(null);
+  readonly created: unknown[] = [];
+  readonly changed: unknown[] = [];
+  readonly erased: string[][] = [];
+  readonly pickedAnnotations: { id: string; anchor: Point; fromList: boolean }[] = [];
 }
 
 /** O jsdom não cria `DragEvent` com `dataTransfer`: monta um evento com os dados do arraste. */
@@ -128,7 +138,7 @@ describe('MapCanvasComponent', () => {
     await fixture.whenStable();
 
     expect(engine.fits).toBe(fits);
-    expect(engine.patches.map((p) => p.type).slice(-2)).toEqual(['links', 'tokens']);
+    expect(engine.patches.map((p) => p.type).slice(-3)).toEqual(['links', 'tokens', 'annotations']);
     expect(engine.tool).toBe('link');
     expect([...engine.hiddenLayers]).toEqual(['tokens']);
     const button = fixture.nativeElement.querySelector('nav button') as HTMLButtonElement;
@@ -267,5 +277,73 @@ describe('MapCanvasComponent', () => {
     canvas.dispatchEvent(over);
     expect(over.defaultPrevented).toBe(false);
     expect(engine.drop).toBeNull();
+  });
+
+  it('turns annotation events into outputs and lists the visible annotations', async () => {
+    const { engine, fixture, host } = await setUp();
+    const pin = { kind: 'pin', at: { x: 5, y: 6 }, color: '#a33a2a', icon: 'castle' } as const;
+    engine.events.emit({ type: 'annotation:created', draft: pin });
+    engine.events.emit({ type: 'annotation:changed', id: 'a1', shape: pin });
+    engine.events.emit({ type: 'annotation:erased', ids: ['a2'] });
+    engine.events.emit({ type: 'annotation:picked', id: 'a1', anchor: { x: 1, y: 2 } });
+    expect(host.created).toEqual([pin]);
+    expect(host.changed).toEqual([{ id: 'a1', shape: pin }]);
+    expect(host.erased).toEqual([['a2']]);
+    expect(host.pickedAnnotations).toEqual([{ id: 'a1', anchor: { x: 1, y: 2 }, fromList: false }]);
+
+    const base = {
+      worldId: 'w',
+      mapId: 'm1',
+      style: {},
+      entityId: null,
+      eventId: null,
+      zIndex: 0,
+      version: 1,
+      createdBy: null,
+      createdAt: '',
+      updatedAt: '',
+    };
+    host.scene.set({
+      ...scene(),
+      annotations: [
+        {
+          ...base,
+          id: 'a1',
+          kind: 'pin',
+          geometry: { x: 5, y: 6 },
+          title: 'Forte',
+          tickStart: null,
+          tickEnd: null,
+        },
+        {
+          ...base,
+          id: 'a2',
+          kind: 'label',
+          geometry: { x: 1, y: 1 },
+          title: 'Reino',
+          tickStart: 300,
+          tickEnd: 450,
+        },
+      ],
+    });
+    host.active.set('a1');
+    await fixture.whenStable();
+    expect(engine.patches.at(-1)).toEqual(expect.objectContaining({ type: 'annotations' }));
+    expect(engine.activeAnnotation).toBe('a1');
+    const items = () =>
+      [...fixture.nativeElement.querySelectorAll('[data-annotation]')].map((b: HTMLElement) =>
+        b.textContent?.trim(),
+      );
+    expect(items()).toEqual(['Pino: Forte']);
+    host.time.set(400);
+    await fixture.whenStable();
+    expect(items()).toEqual(['Pino: Forte', 'Rótulo: Reino']);
+
+    (fixture.nativeElement.querySelector('[data-annotation="a1"]') as HTMLButtonElement).click();
+    expect(host.pickedAnnotations.at(-1)).toEqual({
+      id: 'a1',
+      anchor: { x: 5, y: 6 },
+      fromList: true,
+    });
   });
 });

@@ -7,8 +7,29 @@ import { IconButtonComponent } from '@shared/ui/icon-button/icon-button.componen
 import { TooltipDirective } from '@shared/ui/tooltip/tooltip.directive';
 
 /** Camadas que o usuário pode esconder (o fundo e a ferramenta ficam sempre). */
-export const TOGGLEABLE_LAYERS = ['regions', 'tokens', 'labels'] as const satisfies LayerId[];
+export const TOGGLEABLE_LAYERS = [
+  'regions',
+  'routes',
+  'tokens',
+  'labels',
+] as const satisfies LayerId[];
 export type ToggleableLayer = (typeof TOGGLEABLE_LAYERS)[number];
+
+type AnnotationTool = 'pin' | 'brush' | 'eraser' | 'measure' | 'region' | 'label';
+
+/** Ferramentas de anotação (docs/06 §5) em dois grupos: marcar e desenhar, medir e escrever. */
+const ANNOTATION_TOOLS: readonly (readonly { id: AnnotationTool; icon: string }[])[] = [
+  [
+    { id: 'pin', icon: 'location_on' },
+    { id: 'brush', icon: 'brush' },
+    { id: 'eraser', icon: 'ink_eraser' },
+  ],
+  [
+    { id: 'measure', icon: 'straighten' },
+    { id: 'region', icon: 'pentagon' },
+    { id: 'label', icon: 'title' },
+  ],
+];
 
 /**
  * Barra esquerda (docs/05 › `wd-toolbar-left`): ferramentas em blocos de 44 px com tooltip
@@ -63,6 +84,21 @@ export type ToggleableLayer = (typeof TOGGLEABLE_LAYERS)[number];
         [pressed]="tool() === 'pan'"
         (click)="toolChange.emit('pan')"
       ></button>
+      @for (group of annotationTools; track $index) {
+        <hr class="rule" />
+        @for (item of group; track item.id) {
+          <button
+            wd-icon-button
+            type="button"
+            tooltipPosition="right"
+            [attr.data-tool]="item.id"
+            [icon]="item.icon"
+            [label]="toolLabels[item.id]"
+            [pressed]="tool() === item.id"
+            (click)="toolChange.emit(tool() === item.id ? 'pan' : item.id)"
+          ></button>
+        }
+      }
       <hr class="rule" />
       <button
         wd-icon-button
@@ -143,7 +179,10 @@ export type ToggleableLayer = (typeof TOGGLEABLE_LAYERS)[number];
       display: flex;
       flex-direction: column;
       gap: 4px;
+      max-block-size: calc(100dvh - 64px - 32px - 104px);
       padding: 6px;
+      overflow-y: auto;
+      scrollbar-width: none;
       transition:
         transform var(--wd-dur-base) var(--wd-ease-out),
         opacity var(--wd-dur-base) var(--wd-ease-out);
@@ -193,6 +232,15 @@ export class LeftToolbarComponent {
 
   protected readonly text = MAP_STRINGS.toolbar;
   protected readonly layers = TOGGLEABLE_LAYERS;
+  protected readonly annotationTools = ANNOTATION_TOOLS;
+  protected readonly toolLabels: Record<AnnotationTool, string> = {
+    pin: this.text.pin,
+    brush: this.text.brush,
+    eraser: this.text.eraser,
+    measure: this.text.measure,
+    region: this.text.region,
+    label: this.text.text,
+  };
   protected readonly menuPosition = [
     { originX: 'end', originY: 'top', overlayX: 'start', overlayY: 'top', offsetX: 8 },
   ] as const;
