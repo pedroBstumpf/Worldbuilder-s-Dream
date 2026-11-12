@@ -126,4 +126,19 @@ export const MAP_STRINGS = {
     expand: 'Mostrar Explorar (])',
     resize: 'Largura do Explorar',
   },
+  /** Desfazer e refazer (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z). */
+  history: {
+    labels: {
+      link: 'criar link',
+      unlink: 'remover link',
+      placeEvent: 'marcar evento',
+      unplaceEvent: 'tirar evento do mapa',
+    },
+    undone: (label: string) => `Desfeito: ${label}.`,
+    redone: (label: string) => `Refeito: ${label}.`,
+    nothingToUndo: 'Nada para desfazer.',
+    nothingToRedo: 'Nada para refazer.',
+    undoFailed: 'Não foi possível desfazer. O mapa voltou ao que está gravado.',
+    redoFailed: 'Não foi possível refazer. O mapa voltou ao que está gravado.',
+  },
 } as const;

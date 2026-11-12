@@ -4,6 +4,7 @@ import { Calendar } from '@domain/calendar/calendar';
 import { DEFAULT_CALENDAR } from '@domain/calendar/default-calendar';
 import type { World } from '@domain/models';
 import { WorldRepository } from '@domain/ports';
+import { HistoryStore } from './history.store';
 import { MapStore } from './map.store';
 import { TimelineStore } from './timeline.store';
 import { WorldStore } from './world.store';
@@ -20,7 +21,7 @@ describe('TimelineStore', () => {
   let timeline: InstanceType<typeof TimelineStore>;
 
   beforeEach(async () => {
-    ({ teardown } = await setUpLocalTestBed([WorldStore, MapStore, TimelineStore]));
+    ({ teardown } = await setUpLocalTestBed([WorldStore, MapStore, HistoryStore, TimelineStore]));
     world = await TestBed.inject(WorldRepository).create(
       { id: crypto.randomUUID(), name: 'Eldoria', timeStart: 0, timeEnd: YEAR * 100 },
       DEFAULT_CALENDAR,

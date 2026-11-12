@@ -5,6 +5,7 @@ import { DEFAULT_CALENDAR } from '@domain/calendar/default-calendar';
 import type { World } from '@domain/models';
 import { AssetRepository, MapRepository, WorldRepository } from '@domain/ports';
 import type { ProcessedMapImage } from '@engine/import/read-map-image';
+import { HistoryStore } from './history.store';
 import { MapStore } from './map.store';
 import { WorldStore } from './world.store';
 
@@ -45,7 +46,7 @@ describe('WorldStore', () => {
   let world: World;
 
   beforeEach(async () => {
-    ({ teardown } = await setUpLocalTestBed([WorldStore, MapStore]));
+    ({ teardown } = await setUpLocalTestBed([WorldStore, MapStore, HistoryStore]));
     world = await TestBed.inject(WorldRepository).create(
       { id: crypto.randomUUID(), name: 'Eldoria' },
       DEFAULT_CALENDAR,
@@ -145,7 +146,7 @@ describe('MapStore', () => {
   let teardown: () => Promise<void>;
 
   beforeEach(async () => {
-    ({ teardown } = await setUpLocalTestBed([WorldStore, MapStore]));
+    ({ teardown } = await setUpLocalTestBed([WorldStore, MapStore, HistoryStore]));
   });
 
   afterEach(() => teardown());
