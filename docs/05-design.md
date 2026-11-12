@@ -34,7 +34,7 @@ Três materiais guiam todas as decisões:
 | **Popover sobre o mapa** ancorado a um marcador | `wd-popover`: couro com borda dourada dupla e título em serifa; abre no hover/foco e expande para a ficha com um clique. |
 | Marcador de evento em **losango dourado com halo** | Token de evento: losango com anel pulsante suave enquanto o evento acontece no instante atual. |
 | Ícones de locais como **pequenos selos** | Tokens de local: selo quadrado arredondado com ícone. |
-| **Linha do tempo** inferior com marcos de eras em losango, cursor circular dourado e etiqueta da data | `wd-timeline-bar` (~88 px): trilho percorrido em `ouro-400`, restante em `couro-600`; eras como losangos rotulados; cursor dourado com brilho; etiqueta flutuante com a data no calendário do mundo; controles de play/velocidade recolhidos num ícone até o hover. |
+| **Linha do tempo** inferior com marcos de eras em losango, cursor circular dourado e etiqueta da data | `wd-timeline-bar` (~88 px): trilho percorrido em `ouro-400`, restante em `couro-600`; eras como losangos rotulados; eventos como losangos (pontuais) ou barras (com duração) na cor do marcador; cursor dourado com brilho; etiqueta flutuante com a data no calendário do mundo; à esquerda, play, velocidade e repetir; à direita, mostrar tudo, novo evento e calendário (sempre visíveis, para teclado e toque). |
 
 Ajustes em relação à referência: barras laterais recolhíveis (`[` e `]`) que não cobrem a linha do tempo, e contraste conforme a tabela de [acessibilidade de cor](#acessibilidade-de-cor).
 

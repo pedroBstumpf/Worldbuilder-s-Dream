@@ -32,7 +32,7 @@ export interface MapEngine {
   loadScene(scene: MapScene, image: MapImageSource | null): Promise<void>;
   applyPatch(patch: ScenePatch): void;                 // mudanças incrementais vindas da store
 
-  setTime(tick: number): void;                         // chamado pelo TimelineService
+  setTime(tick: number): void;                         // instante da TimelineStore
   setTool(tool: ToolId): void;
   commitTool(): void;                                  // Enter: fecha o polígono em desenho
   cancelTool(): void;                                  // Esc: descarta o desenho
@@ -61,11 +61,15 @@ type EngineEvent =
   | { type: 'camera'; center: Point; zoom: number }
   | { type: 'link:open'; linkId: string; targetMapId: string }   // lupa ou duplo clique na região
   | { type: 'region:drawn'; polygon: PolygonVertex[] }           // ferramenta de link
-  | { type: 'tool:progress'; tool: ToolId; points: number };
+  | { type: 'tool:progress'; tool: ToolId; points: number }
+  | { type: 'point:picked'; point: Point }                      // ferramenta `place`
+  | { type: 'event:open'; eventId: string }                     // clique num marcador de evento
+  | { type: 'event:hover'; eventId: string | null; anchor: Point }; // popover
 ```
+- `ScenePatch` inclui `{ type: 'events'; events; window }`: os eventos do mundo (datas, cor, local) e a janela dos pontuais. Vale antes de qualquer cena, porque os eventos são do mundo, não do mapa.
 - O motor é criado por uma fábrica assíncrona (`MAP_ENGINE_FACTORY`, padrão `createPixiMapEngine`), que carrega o PixiJS sob demanda num chunk próprio. Os testes de componente usam `FakeMapEngine` (`map-engine/testing`).
-- O componente `wd-map-canvas` é um adaptador fino: cria o motor, passa cena, ferramenta, camadas e margens das barras, restaura a câmera salva e traduz `events` em saídas para as stores (no M3, liga `effect(() => engine.setTime(timeline.currentTick()))`). Com o foco no mapa, as setas movem (`Shift`: passo grande), `+`/`−` aproximam e `0` enquadra.
-- **Ferramentas do M1**: `pan` (padrão), `select`, `calibrate` (escala) e `link`. As demais chegam no M5.
+- O componente `wd-map-canvas` é um adaptador fino: cria o motor, passa cena, ferramenta, camadas, margens das barras (a de baixo é a linha do tempo), instante (`engine.setTime(timeline.currentTick())`) e eventos, restaura a câmera salva e traduz `events` em saídas para as stores. Com o foco no mapa, as setas movem (`Shift`: passo grande), `+`/`−` aproximam e `0` enquadra.
+- **Ferramentas do M1**: `pan` (padrão), `select`, `calibrate` (escala) e `link`. No M3, `place`: um clique escolhe um ponto (Enter: o centro da área visível; Esc cancela), usado para marcar um evento. As demais chegam no M5.
 - **Câmera**: zoom de metade do enquadramento até 8 px de tela por px do mapa; o ponto no meio da área visível nunca sai do mapa. A câmera de cada mapa fica em `profiles.ui_prefs.cameras` (as 60 mais recentes).
 - Animações de câmera ≤ 200 ms; com movimento reduzido, sem desaceleração nem zoom suave.
 
@@ -127,9 +131,11 @@ Cada mundo tem um calendário (JSON validado por schema) que converte ticks ⇄ 
   - `add` em meses e anos mantém o dia e, se ele não existir no destino, usa o último dia do mês (31 de janeiro + 1 mês = 28 ou 29 de fevereiro).
 - Um calendário "Gregoriano simplificado" (`DEFAULT_CALENDAR`) é o padrão ao criar o mundo: meses gregorianos, bissexto a cada 4 anos (o ano da época, 1 EC, é bissexto), eras AEC/EC, e a época cai num domingo.
 - Precisão de exibição adapta-se ao zoom da timeline (era, ano, mês, dia, hora).
+- **Editor** (ícone de calendário na linha do tempo, `CalendarDialogComponent`, carregado sob demanda por causa do Zod): abas "Meses e dias" (meses, semana, horas, bissexto), "Eras e formato" (eras, nome da época, modelo da data) e "Faixa do mundo" (início, fim e o "agora da narrativa"). Valida com `calendarDefinitionSchema` e mostra a data do cursor no calendário em edição. Mudar o calendário não muda ticks, só a leitura deles.
+- **Campo de data** (`wd-date-input`): dia, mês, ano da era e era (hora opcional); só emite datas que existem no calendário (sem ano zero, sem 29 de fevereiro fora do bissexto).
 
 ### Faixa do mundo
-`worlds.time_start` e `worlds.time_end` delimitam o trilho; ajustam-se automaticamente ao criar eventos fora da faixa (com confirmação).
+`worlds.time_start` e `worlds.time_end` delimitam o trilho; ajustam-se automaticamente ao criar eventos fora da faixa (com confirmação, depois de uma pausa na digitação da data).
 
 ## 3. Tokens e keyframes
 
@@ -167,9 +173,12 @@ senão:
 **Snap temporal**: ao criar keyframe, o tick é arredondado à precisão atual da timeline (ex.: zoom em meses → início do dia), configurável.
 
 ## 4. Eventos no mapa
-- Evento com `location_entity_id` ou `point` aparece como **marcador losango** durante `[tick_start, tick_end]`.
+- O ponto de um evento num mapa é um **token do evento** (`map_tokens.event_id`) com um só keyframe: "Marcar no mapa" na ficha do evento liga a ferramenta `place`. Sem token próprio, o marcador usa o token do local (`location_entity_id`), quando o local tiver token neste mapa (M4).
+- O evento aparece como **marcador losango** (`EventLayer`) durante `[tick_start, tick_end]`; um evento pontual continua visível por uma janela de ~8 px do trilho (no mínimo um dia), para não piscar. O halo pulsa enquanto ele acontece (parado com movimento reduzido). Os eventos visíveis também viram botões "Abrir evento: …" para teclado e leitor de tela.
+- Passar o ponteiro por um marcador (no mapa ou no trilho) abre o **popover** (`wd-event-popover`): título, datas e as ações "Ir para a data" e "Abrir ficha". Clicar no marcador do mapa abre a ficha.
 - No trilho da timeline, eventos são losangos (pontuais) ou barras (com duração); clicar move o slider para o início e foca o mapa no local.
-- Eventos de categorias filtráveis (batalha, nascimento, viagem, política…) com cor/ícone.
+- Categorias sugeridas (`EVENT_CATEGORIES`: geral, batalha, nascimento, morte, viagem, política, fundação, descoberta, catástrofe, celebração) com ícone e cor padrão do marcador; a coluna aceita qualquer texto.
+- **Ficha do evento** (`wd-event-sheet`): título, início e fim no calendário do mundo, categoria, local, cor do marcador, posição no mapa aberto (marcar, mudar o ponto, mostrar, tirar), texto com menções e lixeira com "Desfazer". Mesmo autosave das entidades (`Autosaver`).
 
 ## 5. Ferramentas (barra esquerda)
 | Ferramenta | Comportamento | Persistência |
@@ -193,13 +202,14 @@ Toda anotação tem `tick_start`/`tick_end` opcionais (nulos = sempre visível).
 - Acessibilidade: alternativa por teclado — selecionar item, `Enter` → "Colocar no mapa" → posiciona no centro da viewport; setas movem; `Enter` confirma.
 
 ## 7. Linha do tempo (barra inferior)
-- `TimelineStore`: `currentTick`, `viewStart`, `viewEnd`, `isPlaying`, `speed` (ticks por segundo reais, com predefinições: 1 dia/s, 1 mês/s, 1 ano/s), `loop`.
+- `TimelineStore`: `currentTick`, `view` (faixa visível), largura do trilho, `isPlaying`, `speed` (predefinições: 1 dia/s, 1 mês/s, 1 ano/s, 10 anos/s), `loop`; derivados: precisão do cursor, data formatada e janela dos eventos. A matemática (escala, régua alinhada aos anos da era, zoom, passos) fica em `domain/timeline/timeline-scale.ts`.
 - **Play** usa `requestAnimationFrame`; atualiza `currentTick` por delta de tempo real × velocidade.
 - Arrastar o cursor atualiza `currentTick` a cada `pointermove` (sem debounce — a avaliação é barata).
 - O valor de `t` é refletido na URL (`?t=`) com debounce de 300 ms (`replaceUrl`).
-- Zoom na timeline: roda do mouse sobre o trilho (centralizado no ponteiro); pan: arrastar o fundo do trilho.
-- Marcadores: eventos, keyframes da entidade selecionada (pequenos traços), "agora da narrativa" (marcador opcional que o autor define como ponto atual da história).
-- Componente implementado com **SVG** dentro do Angular (não Pixi), porque são poucas dezenas de elementos e precisam de acessibilidade: o cursor é um `role="slider"` com `aria-valuetext` = data formatada.
+- Zoom na timeline: roda do mouse sobre o trilho (centralizado no ponteiro); pan: arrastar o fundo do trilho; clicar no fundo move o cursor (arredondado à precisão do zoom).
+- Marcadores: eventos, keyframes da entidade selecionada (pequenos traços, M4), "agora da narrativa" (marcador opcional que o autor define como ponto atual da história).
+- Componente implementado com **SVG** dentro do Angular (não Pixi), porque são poucas dezenas de elementos e precisam de acessibilidade: o cursor é um `role="slider"` com `aria-valuetext` = data formatada (mais os eventos que acontecem nela). No cursor: setas (Shift: dez unidades), Page Up/Down (evento anterior/seguinte), Home/End, `+`/`−`/`0` (zoom) e Espaço (play). `T` põe o foco no cursor; fora de controles, as setas passam o tempo.
+- O mundo sem mapa não mostra a linha do tempo (só a área de importação), nem grava `?t=`.
 
 ## 8. Mapas hierárquicos
 - `maps.parent_map_id` forma a árvore (Mundo → Continente → Cidade). O **seletor no título** mostra a árvore (`buildMapTree`, em `domain/maps`), a trilha dos mapas-pai e as ações do mapa atual: renomear, tornar mapa principal, definir escala, importar outro mapa e remover links. O mapa aberto fica na URL (`?map=`).

@@ -108,7 +108,7 @@ sequenceDiagram
 ### 2. Abrir um mundo
 1. Na biblioteca, **Abrir mundo** dispara a virada de página **e**, em paralelo, `WorldStore.load(worldId)`: mundo + calendário, mapas, entidades e eventos (campos de lista).
 2. Mapa ativo → RPC `get_map_scene` (tokens, keyframes, anotações).
-3. `MapEngine.loadScene()`; `TimelineService.currentTick` dirige a renderização.
+3. `MapEngine.loadScene()`; `TimelineStore.currentTick` dirige a renderização.
 4. Sem mapa → área de importação (`docs/06` §0).
 
 ### 3. Importar mapa
@@ -120,7 +120,7 @@ Imagem solta na janela → validação e conversão para WebP num Web Worker →
 3. RPC `place_token` (token + keyframe numa transação). Em erro, a store reverte e avisa.
 
 ### 5. Mover o slider
-`TimelineService.currentTick.set(t)` → o motor, no próximo quadro, faz busca binária e interpolação nos keyframes já carregados. Nenhuma chamada de rede e nenhuma atualização de template por quadro.
+`TimelineStore.setTick(t)` → o motor, no próximo quadro, faz busca binária e interpolação nos keyframes já carregados. Nenhuma chamada de rede e nenhuma atualização de template por quadro.
 
 ### 6. Ler um Google Doc
 `GoogleTokenService` pede um access token à Edge Function `google-token` (válido por até 1 h, só em memória) → `documents.get` → conversor para Tiptap → cache por `revisionId`. Detalhes em `docs/08`.

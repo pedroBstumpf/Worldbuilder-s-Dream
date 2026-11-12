@@ -119,10 +119,11 @@ Acompanhar o **Angular Aria** (componentes acessíveis sem estilo do próprio An
 |-------|--------|----------|
 | `SessionStore` | raiz | usuário (`core/auth`, NgRx SignalStore sobre a porta `AuthService`) |
 | `UiPrefsStore` | raiz | `profiles.ui_prefs` pela porta `ProfileRepository` (`core/prefs`): barras e câmera por mapa; muda na hora e grava em lote depois de 800 ms |
-| `WorldStore` | rota `w/:worldId` | mundo, mapas (árvore, mapa ativo, importação e envio em segundo plano); depois calendário, membros, Docs |
-| `EntityStore` | rota `w/:worldId` | entidades e eventos do mundo, ficha aberta (`?sel=`), retratos, status de gravação e o índice de busca (`WorldSearch`) |
-| `MapStore` | rota `w/:worldId` | cena do mapa ativo (links; depois tokens, keyframes, anotações), seleção |
-| `TimelineStore` | rota `w/:worldId` | `currentTick`, faixa visível, zoom, `isPlaying`, velocidade |
+| `WorldStore` | rota `w/:worldId` | mundo, calendário, faixa do mundo, mapas (árvore, mapa ativo, importação e envio em segundo plano); depois membros, Docs |
+| `EntityStore` | rota `w/:worldId` | entidades do mundo, ficha aberta (`?sel=`), retratos, status de gravação e o índice de busca (`WorldSearch`, que inclui os eventos) |
+| `EventStore` | rota `w/:worldId` | eventos da linha do tempo, ficha do evento aberta (também em `?sel=`), status de gravação |
+| `MapStore` | rota `w/:worldId` | cena do mapa ativo (links e pontos dos eventos; depois tokens de entidade, anotações), seleção |
+| `TimelineStore` | rota `w/:worldId` | `currentTick`, faixa visível, zoom, `isPlaying`, velocidade, repetição |
 | `ToolStore` | rota `w/:worldId` | ferramenta ativa e opções |
 | `HistoryStore` | rota `w/:worldId` | desfazer/refazer (padrão Command) |
 
@@ -148,7 +149,9 @@ Regras:
 - Barras como overlays com `pointer-events` só nelas; o resto passa eventos ao canvas.
 - Larguras redimensionáveis (CDK Drag no eixo X; setas na alça, que é um `separator`), salvas em `profiles.ui_prefs`.
 - O motor recebe a área coberta pelas barras (`setInsets`) para enquadrar o mapa na parte livre.
-- **Explorar** (M2): abas Personagens, Locais, **Acervo** (facções, itens e notas, com filtro por tipo), Eventos (só leitura até o M3) e História (vazia até os Google Docs). Filtro pela busca do mundo (mostra o apelido que casou), botão `+` com o tipo da aba e lista virtual. As linhas são arrastáveis (`application/x-wd-entity`); o mapa aceita o arraste no M4.
+- **Explorar** (M2): abas Personagens, Locais, **Acervo** (facções, itens e notas, com filtro por tipo), Eventos (por data, com a data no calendário do mundo; abre a ficha do evento) e História (vazia até os Google Docs). Filtro pela busca do mundo (mostra o apelido que casou), botão `+` com o tipo da aba (na aba Eventos, "Novo evento") e lista virtual. As linhas de entidade são arrastáveis (`application/x-wd-entity`); o mapa aceita o arraste no M4.
+- **Linha do tempo** (M3, `wd-timeline-bar`): barra inferior de 88 px, de borda a borda; as barras laterais, as fichas e os avisos terminam acima dela (`--wd-bottom-bar`, `--wd-toast-offset`) e o motor a recebe como margem inferior. Detalhes em [`docs/06` §7](06-mapa-e-tempo.md#7-linha-do-tempo-barra-inferior).
+- **Ficha do evento** (`wd-event-sheet`): mesma página da ficha de entidade (estilos comuns em `entities/sheet.css`); só uma ficha fica aberta por vez. O autosave das duas usa o `Autosaver` (`state/autosave.ts`).
 - **Ficha** (`wd-entity-sheet`): página de pergaminho sobre o Explorar (mínimo 440 px), com retrato, nome, status ("Salvando…", "Salvo") e as abas **Resumo** (subtítulo, tipo, cor do anel, apelidos, etiquetas, "Citada em", lixeira) e **Texto** (editor). Esc fecha e devolve o foco à linha. Relações, Aparições e Documentos chegam com os marcos que os alimentam.
 - **Autosave da ficha**: a `EntityStore` aplica a edição na hora e grava 600 ms depois da última mudança, uma gravação por vez por entidade. Conflito recarrega a entidade e avisa; outras falhas guardam a edição e oferecem "Tentar de novo". A lixeira mostra "Desfazer".
 - **Retrato**: o arquivo passa pelas mesmas checagens do mapa, vira um quadrado de até 512 px em WebP (sem EXIF) e vai para a porta `AssetRepository`; o anterior é apagado.
