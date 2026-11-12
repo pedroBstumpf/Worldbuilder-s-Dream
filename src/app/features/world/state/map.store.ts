@@ -5,6 +5,7 @@ import {
   applySceneChange,
   invertSceneChange,
   isEmptySceneChange,
+  sortImageVersions,
   writeAnnotation,
   type AnnotationShape,
   type SceneChange,
@@ -19,6 +20,7 @@ import {
 import type {
   InterpolationMode,
   MapAnnotation,
+  MapImageVersion,
   MapLink,
   MapToken,
   PolygonVertex,
@@ -36,7 +38,8 @@ import {
   type MapTokenInput,
   type TokenKeyframeInput,
 } from '@domain/ports';
-import type { MapImageSource } from '@engine/map-engine';
+import type { ProcessedMapImage } from '@engine/import/read-map-image';
+import type { ImageVersionInput, MapImageSource } from '@engine/map-engine';
 import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
 import { HistoryStore } from './history.store';
 
@@ -48,6 +51,8 @@ interface MapState {
   readonly status: SceneStatus;
   /** Tokens selecionados no mapa (clique, Shift, retângulo). */
   readonly selection: readonly Uuid[];
+  /** URL de cada imagem do mapa (inicial e versões), por id do asset. */
+  readonly imageUrls: Readonly<Record<Uuid, string>>;
 }
 
 function tokenInput(token: MapToken): MapTokenInput {
@@ -103,8 +108,21 @@ export type MapEditLabel = keyof typeof MAP_STRINGS.history.labels;
  * (`HistoryStore`). Se a gravação falha, a cena volta a ser lida do repositório.
  */
 export const MapStore = signalStore(
-  withState<MapState>({ scene: null, image: null, status: 'idle', selection: [] }),
-  withComputed(({ scene, selection }) => ({
+  withState<MapState>({ scene: null, image: null, status: 'idle', selection: [], imageUrls: {} }),
+  withComputed(({ scene, selection, imageUrls }) => ({
+    /** Versões da imagem como o motor e a linha do tempo precisam (URL já resolvida). */
+    imageVersionInputs: computed<ImageVersionInput[]>(() =>
+      (scene()?.imageVersions ?? []).map((version) => ({
+        id: version.id,
+        tickStart: version.tickStart,
+        url: version.imageAssetId ? (imageUrls()[version.imageAssetId] ?? null) : null,
+      })),
+    ),
+    /** URL da imagem inicial do mapa (miniatura no painel de versões), se já enviada. */
+    baseImageUrl: computed(() => {
+      const assetId = scene()?.map.imageAssetId;
+      return assetId ? (imageUrls()[assetId] ?? null) : null;
+    }),
     /** Seleção sem os tokens que saíram da cena. */
     selectedTokens: computed(() => {
       const tokens = scene()?.tokens ?? [];
@@ -200,6 +218,56 @@ export const MapStore = signalStore(
           };
         });
 
+      /** Resolve as URLs das imagens ainda sem URL (falha: a imagem fica indisponível). */
+      const resolveUrls = async (assetIds: readonly (Uuid | null)[]) => {
+        const missing = [...new Set(assetIds)].filter(
+          (id): id is Uuid => id !== null && !(id in store.imageUrls()),
+        );
+        const entries = await Promise.all(
+          missing.map(async (id) => {
+            const asset = await assets.get(id).catch(() => null);
+            const url = asset ? await assets.resolveUrl(asset).catch(() => null) : null;
+            return url ? ([id, url] as const) : null;
+          }),
+        );
+        const found = entries.filter((entry) => entry !== null);
+        if (found.length > 0) {
+          patchState(store, { imageUrls: { ...store.imageUrls(), ...Object.fromEntries(found) } });
+        }
+      };
+
+      /** Troca as versões da cena, se ela ainda for do mapa `mapId`. */
+      const setVersions = (
+        mapId: Uuid,
+        change: (versions: MapImageVersion[]) => MapImageVersion[],
+      ) => {
+        const scene = store.scene();
+        if (scene?.map.id !== mapId) return;
+        const imageVersions = sortImageVersions(change(scene.imageVersions));
+        patchState(store, { scene: { ...scene, imageVersions } });
+      };
+
+      const requireVersion = (id: Uuid) => {
+        const version = store.scene()?.imageVersions.find((v) => v.id === id);
+        if (!version) throw new Error(`versão ${id} não carregada`);
+        return version;
+      };
+
+      /** Envia a imagem processada como asset do mundo (o bitmap não é mais usado). */
+      const uploadImage = (worldId: Uuid, processed: ProcessedMapImage) => {
+        processed.bitmap.close();
+        return assets.upload(
+          {
+            id: crypto.randomUUID(),
+            worldId,
+            mimeType: processed.image.type,
+            width: processed.width,
+            height: processed.height,
+          },
+          processed.image,
+        );
+      };
+
       const requireScene = () => {
         const scene = store.scene();
         if (!scene) throw new Error('nenhuma cena carregada');
@@ -229,6 +297,7 @@ export const MapStore = signalStore(
             }
             if (id !== request) return;
             patchState(store, { scene: { ...scene, map }, image, status: 'ready' });
+            void resolveUrls([map.imageAssetId, ...scene.imageVersions.map((v) => v.imageAssetId)]);
           } catch {
             if (id === request) patchState(store, { status: 'error' });
           }
@@ -237,7 +306,80 @@ export const MapStore = signalStore(
         /** Mantém o registro do mapa da cena em dia (nome, escala, dimensões). */
         syncMap(map: WorldMap): void {
           const scene = store.scene();
-          if (scene?.map.id === map.id) patchState(store, { scene: { ...scene, map } });
+          if (scene?.map.id !== map.id) return;
+          patchState(store, { scene: { ...scene, map } });
+          // A imagem inicial terminou de subir (ou foi trocada): miniatura do painel.
+          void resolveUrls([map.imageAssetId]);
+        },
+
+        /**
+         * Nova versão da imagem a partir de `tickStart` (docs/06 › Versões da imagem no
+         * tempo): envia a imagem e grava a versão. Se a gravação falha, apaga o arquivo.
+         */
+        async addImageVersion(
+          processed: ProcessedMapImage,
+          tickStart: Tick,
+        ): Promise<MapImageVersion> {
+          const { map } = requireScene();
+          const asset = await uploadImage(map.worldId, processed);
+          let version: MapImageVersion;
+          try {
+            version = await maps.createImageVersion({
+              id: crypto.randomUUID(),
+              worldId: map.worldId,
+              mapId: map.id,
+              imageAssetId: asset.id,
+              tickStart,
+            });
+          } catch (error) {
+            await assets.delete(asset.id).catch(() => undefined);
+            throw error;
+          }
+          await resolveUrls([asset.id]);
+          setVersions(map.id, (versions) => [...versions, version]);
+          return version;
+        },
+
+        /** Muda a data em que a versão começa a valer. */
+        async moveImageVersion(id: Uuid, tickStart: Tick): Promise<void> {
+          const before = requireVersion(id);
+          if (before.tickStart === tickStart) return;
+          const updated = await maps.updateImageVersion(id, { tickStart }, before.version);
+          setVersions(before.mapId, (versions) => versions.map((v) => (v.id === id ? updated : v)));
+        },
+
+        /** Troca a imagem de uma versão (a antiga é apagada depois de gravar). */
+        async replaceImageVersion(id: Uuid, processed: ProcessedMapImage): Promise<void> {
+          const before = requireVersion(id);
+          const asset = await uploadImage(before.worldId, processed);
+          let updated: MapImageVersion;
+          try {
+            updated = await maps.updateImageVersion(id, { imageAssetId: asset.id }, before.version);
+          } catch (error) {
+            await assets.delete(asset.id).catch(() => undefined);
+            throw error;
+          }
+          await resolveUrls([asset.id]);
+          setVersions(before.mapId, (versions) => versions.map((v) => (v.id === id ? updated : v)));
+          if (before.imageAssetId) await assets.delete(before.imageAssetId).catch(() => undefined);
+        },
+
+        /** Manda a versão para a lixeira (o arquivo fica, para "Desfazer"). */
+        async removeImageVersion(id: Uuid): Promise<MapImageVersion> {
+          const before = requireVersion(id);
+          await maps.moveImageVersionToTrash(id, before.version);
+          setVersions(before.mapId, (versions) => versions.filter((v) => v.id !== id));
+          return before;
+        },
+
+        /** Tira a versão da lixeira ("Desfazer"). */
+        async restoreImageVersion(id: Uuid): Promise<void> {
+          const restored = await maps.restoreImageVersion(id);
+          await resolveUrls([restored.imageAssetId]);
+          setVersions(restored.mapId, (versions) => [
+            ...versions.filter((v) => v.id !== id),
+            restored,
+          ]);
         },
 
         clear(): void {
