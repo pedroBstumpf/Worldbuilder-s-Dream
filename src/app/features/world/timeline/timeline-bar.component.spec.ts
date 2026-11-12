@@ -72,6 +72,16 @@ describe('TimelineBarComponent', () => {
     expect(timeline.currentTick()).toBe(yearStart(100));
   });
 
+  it('marca as posições da entidade selecionada no trilho', async () => {
+    const { fixture } = await render();
+    const traces = () => fixture.nativeElement.querySelectorAll('line.keyframe').length;
+    expect(traces()).toBe(0);
+    // A faixa visível começa no mundo inteiro: o ano 50 está dentro, o 500 não.
+    fixture.componentRef.setInput('keyframeTicks', [yearStart(10), yearStart(50), yearStart(500)]);
+    await fixture.whenStable();
+    expect(traces()).toBe(2);
+  });
+
   it('reproduz e pausa pelo botão', async () => {
     const { fixture } = await render();
     const play = fixture.nativeElement.querySelector(
