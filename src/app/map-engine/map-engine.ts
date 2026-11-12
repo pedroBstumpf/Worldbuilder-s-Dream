@@ -1,5 +1,7 @@
 import type { Point } from '@domain/geometry';
+import type { AnnotationShape, BrushStyle } from '@domain/maps';
 import type {
+  MapAnnotation,
   EntityKind,
   MapLink,
   MapToken,
@@ -16,11 +18,47 @@ import type { MapScene } from '@domain/ports';
  */
 
 /**
- * Ferramentas do M1 e `place` (M3: um clique escolhe um ponto, como o lugar de um evento);
- * as de desenho (pino, régua, pincel…) chegam no M5.
+ * Ferramentas (docs/06 §5): as do M1 (`select`, `pan`, `calibrate`, `link`), `place` (M3:
+ * um clique escolhe um ponto, como o lugar de um evento) e as de anotação do M5.
  */
-export type ToolId = 'select' | 'pan' | 'calibrate' | 'link' | 'place';
-export const TOOL_IDS: readonly ToolId[] = ['select', 'pan', 'calibrate', 'link', 'place'];
+export type ToolId =
+  | 'select'
+  | 'pan'
+  | 'pin'
+  | 'brush'
+  | 'eraser'
+  | 'measure'
+  | 'region'
+  | 'label'
+  | 'calibrate'
+  | 'link'
+  | 'place';
+export const TOOL_IDS: readonly ToolId[] = [
+  'select',
+  'pan',
+  'pin',
+  'brush',
+  'eraser',
+  'measure',
+  'region',
+  'label',
+  'calibrate',
+  'link',
+  'place',
+];
+
+/** Ferramentas em que o clique desenha ou marca (tokens, links e eventos não respondem). */
+export const DRAWING_TOOLS: readonly ToolId[] = [
+  'pin',
+  'brush',
+  'eraser',
+  'measure',
+  'region',
+  'label',
+  'calibrate',
+  'link',
+  'place',
+];
 
 /** Camadas na ordem de desenho (docs/06 › Camadas). */
 export type LayerId = 'background' | 'regions' | 'routes' | 'tokens' | 'labels' | 'overlay';
@@ -80,7 +118,9 @@ export type ScenePatch =
   /** `window`: quanto um evento pontual continua visível depois do início (em ticks). */
   | { type: 'events'; events: EventMarkerInput[]; window: Tick }
   /** Aparência das entidades do mundo; vale para todos os mapas, como os eventos. */
-  | { type: 'looks'; looks: TokenLook[] };
+  | { type: 'looks'; looks: TokenLook[] }
+  /** Pinos, traços, regiões, rótulos e medições do mapa (docs/06 §5). */
+  | { type: 'annotations'; annotations: MapAnnotation[] };
 
 export type EngineEvent =
   /** Fim do arraste de um token; `correctPrevious` (Alt) corrige o keyframe em vigor. */
@@ -95,7 +135,16 @@ export type EngineEvent =
   | { type: 'keyframe:moved'; keyframeId: Uuid; to: Point }
   /** Clique num losango do rastro. */
   | { type: 'keyframe:picked'; keyframeId: Uuid; tick: Tick }
+  /** Escala (dois pontos) ou régua (a cada clique, com o total). */
   | { type: 'measure'; points: Point[]; distance: number }
+  /** Pino, rótulo, traço ou região desenhados (a medição é fixada pela tela). */
+  | { type: 'annotation:created'; draft: AnnotationShape }
+  /** Pino ou rótulo arrastado: a forma com o novo ponto. */
+  | { type: 'annotation:changed'; id: Uuid; shape: AnnotationShape }
+  /** Fim de uma passada da borracha: os traços que ela tocou. */
+  | { type: 'annotation:erased'; ids: Uuid[] }
+  /** Clique numa anotação (abre o editor); `anchor` em coordenadas da janela. */
+  | { type: 'annotation:picked'; id: Uuid; anchor: Point }
   | { type: 'camera'; center: Point; zoom: number }
   /** Duplo clique (ou clique na lupa) numa região de link. */
   | { type: 'link:open'; linkId: Uuid; targetMapId: Uuid }
@@ -171,6 +220,12 @@ export interface MapEngine {
   setTrails(tokenIds: Uuid[]): void;
   /** Posição atual do token no mapa (`null` se oculto ou ausente). */
   tokenPosition(tokenId: Uuid): Point | null;
+  /** Cor, espessura, opacidade e tracejado das próximas anotações. */
+  setDrawStyle(style: BrushStyle): void;
+  /** Anotação aberta no editor (destacada); `null` nenhuma. */
+  setActiveAnnotation(id: Uuid | null): void;
+  /** Texto das medições fixadas (na unidade do mapa); `null` = em px. */
+  setDistanceFormat(format: ((pixels: number) => string) | null): void;
 
   screenToWorld(clientX: number, clientY: number): Point;
   worldToScreen(p: Point): Point;
