@@ -55,7 +55,7 @@ test.describe('book: cover → library → map', () => {
     await page.getByRole('button', { name: WORLD_STRINGS.backToLibrary }).click();
     await expect(page).toHaveURL('/biblioteca');
     await expect(libraryTitle(page)).toBeFocused();
-    await expect(page.getByRole('button', { name: /Valmora/ })).toHaveAttribute(
+    await expect(page.getByRole('button', { name: /^Valmora/ })).toHaveAttribute(
       'aria-current',
       'true',
     );
