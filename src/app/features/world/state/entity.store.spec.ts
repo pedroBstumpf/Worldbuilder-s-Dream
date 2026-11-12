@@ -3,6 +3,7 @@ import { setUpLocalTestBed } from '@data/local/testing/local-test-bed';
 import type { RichTextDoc } from '@domain/models';
 import { AssetRepository, EntityRepository, EventRepository } from '@domain/ports';
 import { EntityStore } from './entity.store';
+import { EventStore } from './event.store';
 
 const worldId = crypto.randomUUID();
 
@@ -37,7 +38,7 @@ describe('EntityStore', () => {
   let store: InstanceType<typeof EntityStore>;
 
   beforeEach(async () => {
-    ({ teardown } = await setUpLocalTestBed([EntityStore]));
+    ({ teardown } = await setUpLocalTestBed([EntityStore, EventStore]));
     store = TestBed.inject(EntityStore);
     await TestBed.inject(EventRepository).create({
       id: crypto.randomUUID(),

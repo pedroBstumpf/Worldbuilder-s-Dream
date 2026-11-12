@@ -44,7 +44,7 @@ export const ENTITY_STRINGS = {
       characters: 'Crie o primeiro com o botão +.',
       locations: 'Crie o primeiro com o botão +.',
       collection: 'Crie a primeira com o botão +.',
-      events: 'Os eventos da linha do tempo chegam no próximo marco.',
+      events: 'Crie o primeiro com o botão + ou na linha do tempo.',
       history: 'Google Docs vinculados ao mundo chegam com o Google Drive.',
     },
     listLabel: (tab: string) => `Lista: ${tab}`,

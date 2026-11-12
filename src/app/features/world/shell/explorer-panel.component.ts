@@ -7,7 +7,9 @@ import {
 import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { clampExplorerWidth, EXPLORER_WIDTH } from '@core/prefs/ui-prefs';
 import { ENTITY_KIND_STRINGS, ENTITY_STRINGS } from '@core/strings/entity.strings';
+import { TIME_STRINGS } from '@core/strings/time.strings';
 import { MAP_STRINGS } from '@core/strings/map.strings';
+import { eventColor } from '@domain/events';
 import type { EntityKind, Uuid } from '@domain/models';
 import type { SearchKind } from '@domain/search';
 import { IconButtonComponent } from '@shared/ui/icon-button/icon-button.component';
@@ -16,6 +18,8 @@ import { TabsComponent, tabPanelId, tabId, type TabItem } from '@shared/ui/tabs/
 import { TooltipDirective } from '@shared/ui/tooltip/tooltip.directive';
 import { EntityAvatarComponent } from '../entities/entity-avatar.component';
 import { EntityStore } from '../state/entity.store';
+import { EventStore } from '../state/event.store';
+import { WorldStore } from '../state/world.store';
 
 /** Passo do redimensionamento pelo teclado. */
 const RESIZE_STEP = 16;
@@ -103,7 +107,7 @@ interface Row {
         [id]="panelId()"
         [attr.aria-labelledby]="tabLabelId()"
       >
-        @if (isEntityTab()) {
+        @if (tab() !== 'history') {
           <div class="tools">
             <label class="sr-only" for="wd-explorer-filter">{{ strings.filter }}</label>
             <span class="search">
@@ -126,7 +130,7 @@ interface Row {
               variant="secondary"
               tooltipPosition="left"
               [label]="createLabel()"
-              (click)="create.emit(createKind())"
+              (click)="tab() === 'events' ? createEvent.emit() : create.emit(createKind())"
             ></button>
           </div>
           @if (tab() === 'collection') {
@@ -177,12 +181,19 @@ interface Row {
             >
               <div *cdkVirtualFor="let row of rows(); trackBy: trackRow" role="listitem">
                 @if (row.kind === 'event') {
-                  <div class="row" [title]="row.title">
+                  <button
+                    type="button"
+                    class="row interactive wd-focus"
+                    [attr.data-id]="row.id"
+                    [attr.aria-current]="row.id === events.openId() ? 'true' : null"
+                    (click)="openEvent.emit(row.id)"
+                  >
                     <wd-entity-avatar kind="event" [color]="row.color" [size]="32" />
                     <span class="names">
                       <span class="name">{{ row.title }}</span>
+                      <span class="sub">{{ row.subtitle }}</span>
                     </span>
-                  </div>
+                  </button>
                 } @else {
                   <button
                     type="button"
@@ -467,9 +478,14 @@ export class ExplorerPanelComponent {
   readonly openEntity = output<Uuid>();
   /** Botão +: criar entidade do tipo sugerido pela aba. */
   readonly create = output<EntityKind>();
+  /** Botão + na aba Eventos. */
+  readonly createEvent = output();
+  readonly openEvent = output<Uuid>();
   readonly retry = output();
 
   protected readonly store = inject(EntityStore);
+  protected readonly events = inject(EventStore);
+  private readonly world = inject(WorldStore);
   protected readonly text = MAP_STRINGS.explorer;
   protected readonly strings = ENTITY_STRINGS.explorer;
   protected readonly kindNames = ENTITY_KIND_STRINGS;
@@ -499,7 +515,6 @@ export class ExplorerPanelComponent {
 
   protected readonly panelId = computed(() => tabPanelId('wd-explorer', this.tab()));
   protected readonly tabLabelId = computed(() => tabId('wd-explorer', this.tab()));
-  protected readonly isEntityTab = computed(() => this.kinds() !== null);
 
   /** Tipos listados na aba atual (null nas abas de eventos e história). */
   private readonly kinds = computed<readonly EntityKind[] | null>(() => {
@@ -510,22 +525,33 @@ export class ExplorerPanelComponent {
   });
 
   protected readonly createKind = computed<EntityKind>(() => this.kinds()?.[0] ?? 'character');
-  protected readonly createLabel = computed(() =>
-    this.tab() === 'collection' && this.filter() === 'all'
+  protected readonly createLabel = computed(() => {
+    if (this.tab() === 'events') return TIME_STRINGS.events.create.title;
+    return this.tab() === 'collection' && this.filter() === 'all'
       ? this.strings.create
-      : ENTITY_KIND_STRINGS[this.createKind()].create,
-  );
+      : ENTITY_KIND_STRINGS[this.createKind()].create;
+  });
 
   protected readonly rows = computed<readonly Row[]>(() => {
     if (this.tab() === 'history') return [];
     if (this.tab() === 'events') {
-      return this.store.events().map((event) => ({
+      const calendar = this.world.calendar();
+      const query = this.query().trim();
+      const byId = this.events.byId();
+      const list = query
+        ? this.store
+            .search()
+            .search(query, { kinds: ['event'] })
+            .map((hit) => byId.get(hit.id))
+            .filter((event) => event !== undefined)
+        : this.events.sorted();
+      return list.map((event) => ({
         id: event.id,
         kind: 'event' as const,
         title: event.title,
-        subtitle: null,
+        subtitle: calendar.format(event.tickStart),
         alias: null,
-        color: event.color,
+        color: eventColor(event),
         portraitAssetId: null,
       }));
     }
@@ -563,7 +589,7 @@ export class ExplorerPanelComponent {
     if (this.tab() !== 'history' && (status === 'loading' || status === 'idle')) return 'loading';
     if (this.tab() !== 'history' && status === 'error') return 'error';
     if (this.rows().length > 0) return 'list';
-    return this.query().trim() && this.isEntityTab() ? 'no-match' : 'empty';
+    return this.query().trim() && this.tab() !== 'history' ? 'no-match' : 'empty';
   });
 
   protected readonly emptyIcon = computed(
@@ -588,6 +614,11 @@ export class ExplorerPanelComponent {
       TAB_KINDS[key].includes(kind),
     );
     if (tab && tab !== this.tab()) this.selectTab(tab);
+  }
+
+  /** Mostra a aba Eventos (ao abrir a ficha de um evento). */
+  showEvents(): void {
+    if (this.tab() !== 'events') this.selectTab('events');
   }
 
   protected selectTab(tab: ExplorerTab): void {
