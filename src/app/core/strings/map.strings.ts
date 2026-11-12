@@ -122,8 +122,6 @@ export const MAP_STRINGS = {
   },
   explorer: {
     title: 'Explorar',
-    empty: 'Nenhuma entidade ainda.',
-    emptyHint: 'Personagens, locais e eventos aparecem aqui.',
     collapse: 'Recolher Explorar (])',
     expand: 'Mostrar Explorar (])',
     resize: 'Largura do Explorar',
