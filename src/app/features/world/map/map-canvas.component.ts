@@ -397,8 +397,14 @@ export class MapCanvasComponent {
     this.engine()?.zoomBy(factor);
   }
 
-  commitTool(): void {
-    this.engine()?.commitTool();
+  /**
+   * Enter da ferramenta. `tool` é a ferramenta que a tela acabou de escolher: o input só
+   * chega ao motor na próxima detecção de mudanças, e um Enter logo depois se perderia.
+   */
+  commitTool(tool?: ToolId): void {
+    const engine = this.engine();
+    if (tool) engine?.setTool(tool);
+    engine?.commitTool();
   }
 
   cancelTool(): void {

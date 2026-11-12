@@ -1550,7 +1550,7 @@ export default class WorldShellPage {
       {
         key: 'enter',
         when: (event) => (this.tool() === 'link' || this.tool() === 'place') && notOnControl(event),
-        down: () => this.canvas()?.commitTool(),
+        down: () => this.canvas()?.commitTool(this.effectiveTool()),
       },
       { key: 'k', mod: true, inFields: true, down: () => void this.openPalette() },
       {
