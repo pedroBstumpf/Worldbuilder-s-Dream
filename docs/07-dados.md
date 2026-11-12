@@ -16,6 +16,7 @@ erDiagram
   worlds ||--o{ assets : "contém"
   maps ||--o{ maps : "filho de"
   maps ||--o{ map_links : "região leva a"
+  maps ||--o{ map_image_versions : "muda de imagem em"
   maps ||--o{ map_tokens : "posiciona"
   maps ||--o{ map_annotations : "desenha"
   entities ||--o{ map_tokens : "representada por"
@@ -150,6 +151,22 @@ create table public.map_links (
   polygon       jsonb not null,         -- [[x,y],...] em coordenadas do mapa-pai
   check (map_id <> target_map_id)
 );
+
+-- Versões da imagem no tempo (docs/06 §1): a imagem do mapa vale até a primeira versão;
+-- cada versão vale até o tick_start da seguinte
+create table public.map_image_versions (
+  id             uuid primary key default gen_random_uuid(),
+  world_id       uuid not null references public.worlds(id) on delete cascade,
+  map_id         uuid not null references public.maps(id) on delete cascade,
+  image_asset_id uuid references public.assets(id) on delete set null,
+  tick_start     bigint not null,
+  deleted_at     timestamptz,
+  version        int not null default 1,
+  created_by     uuid references public.profiles(id),
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+create unique index on public.map_image_versions (map_id, tick_start) where deleted_at is null;
 
 -- 6. Entidades
 create table public.entities (
@@ -387,7 +404,7 @@ grant execute on function public.world_role, public.can_read_world, public.can_e
 ## Políticas RLS (padrão)
 Habilitar em **todas** as tabelas: `alter table public.<t> enable row level security;`
 
-### Tabelas filhas de mundo (modelo aplicado a `maps`, `entities`, `events`, `map_tokens`, `token_keyframes`, `map_annotations`, `map_links`, `entity_relations`, `entity_mentions`, `event_participants`, `external_links`, `assets`)
+### Tabelas filhas de mundo (modelo aplicado a `maps`, `map_image_versions`, `entities`, `events`, `map_tokens`, `token_keyframes`, `map_annotations`, `map_links`, `entity_relations`, `entity_mentions`, `event_participants`, `external_links`, `assets`)
 ```sql
 create policy "members read"  on public.entities for select to authenticated
   using ( (select public.can_read_world(world_id)) );

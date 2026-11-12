@@ -95,6 +95,7 @@ Tempo real e presença entre os usuários de um mundo, leitura offline, edição
 | RF-14 | Transições do livro (capa → biblioteca → mapa e volta) podem ser puladas; são sempre completas, com fade cruzado para quem pede movimento reduzido no sistema e versão curta automática em máquinas lentas (ADR-0011). |
 | RF-15 | O dono de um mundo adiciona ou remove, como editor, pessoas que já têm acesso ao app. |
 | RF-16 | Usuário exporta um mundo (JSON) e exclui a própria conta. |
+| RF-17 | Um mapa pode ter versões da imagem a partir de datas do mundo (antes e depois de um cataclismo, uma cidade que cresce); ao mover o slider, o mapa mostra a versão daquele instante, sem perder tokens, anotações e links. |
 
 ## Requisitos não funcionais
 | ID | Requisito | Meta |

@@ -41,7 +41,7 @@ A ordem de construção é **front-end → back-end e banco → integrações �
 | M2 · Entidades | CRUD, ficha com Tiptap, retratos, apelidos, Explorar com abas, busca (MiniSearch) |
 | M3 · Tempo | Calendário configurável, linha do tempo com eras, play/velocidade, marcadores, CRUD de eventos |
 | M4 · Tokens | Arrastar para o mapa, keyframes, interpolação, rastro, desfazer/refazer |
-| M5 · Ferramentas | Marcar ponto, régua, pincel, região, rótulo (com validade temporal); camadas |
+| M5 · Ferramentas | Marcar ponto, régua, pincel, região, rótulo (com validade temporal); camadas; versões da imagem do mapa no tempo |
 | M6 · Livro | Capa, biblioteca, transições do livro, lixeira |
 | M7 · Dados portáveis | Exportar e importar mundo em JSON (formato do `export-world`) |
 
