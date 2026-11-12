@@ -1,5 +1,7 @@
 import {
   fitWithin,
+  planAspectFit,
+  type AspectFitMode,
   MAP_IMAGE_MAX_SIDE,
   MAP_THUMBNAIL_SIDE,
   MAP_WEBP_QUALITY,
@@ -20,6 +22,14 @@ export interface ProcessedMapImage {
   originalHeight: number;
   /** A imagem passava de 8192 px e foi reduzida. */
   reduced: boolean;
+}
+
+/** Levar a imagem à proporção de outra (versão da imagem de um mapa, docs/06 §1). */
+export interface AspectFit {
+  /** Tamanho do mapa (só a proporção importa). */
+  width: number;
+  height: number;
+  mode: AspectFitMode;
 }
 
 type Drawable = ImageBitmap | OffscreenCanvas;
@@ -56,22 +66,36 @@ async function encode(canvas: OffscreenCanvas, quality: number): Promise<Blob> {
  * Decodifica, reduz para caber em 8192 px, recodifica (o que descarta o EXIF; a orientação
  * já vem aplicada pelo `createImageBitmap`) e gera a miniatura. Roda no Worker.
  */
-export async function processMapImage(file: Blob): Promise<ProcessedMapImage> {
+export async function processMapImage(file: Blob, fit?: AspectFit): Promise<ProcessedMapImage> {
   const source = await createImageBitmap(file);
   const original = { width: source.width, height: source.height };
   const target = fitWithin(original, MAP_IMAGE_MAX_SIDE);
-  const canvas = downscale(source, target);
+  let canvas = downscale(source, target);
   source.close();
+  if (fit) canvas = fitAspect(canvas, fit);
   const image = await encode(canvas, MAP_WEBP_QUALITY);
-  const thumbnail = await encode(downscale(canvas, fitWithin(target, MAP_THUMBNAIL_SIDE)), 0.8);
+  const size = { width: canvas.width, height: canvas.height };
+  const thumbnail = await encode(downscale(canvas, fitWithin(size, MAP_THUMBNAIL_SIDE)), 0.8);
   return {
     image,
     thumbnail,
     bitmap: canvas.transferToImageBitmap(),
-    width: target.width,
-    height: target.height,
+    width: canvas.width,
+    height: canvas.height,
     originalWidth: original.width,
     originalHeight: original.height,
     reduced: target.reduced,
   };
+}
+
+/** Corta as sobras ou põe margens transparentes, centrando a imagem na proporção do mapa. */
+function fitAspect(source: OffscreenCanvas, fit: AspectFit): OffscreenCanvas {
+  const plan = planAspectFit(source, fit, fit.mode, MAP_IMAGE_MAX_SIDE);
+  const canvas = new OffscreenCanvas(plan.canvas.width, plan.canvas.height);
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('canvas 2d indisponível');
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
+  context.drawImage(source, plan.x, plan.y, plan.width, plan.height);
+  return canvas;
 }
