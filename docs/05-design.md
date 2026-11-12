@@ -30,7 +30,7 @@ Três materiais guiam todas as decisões:
 | Mapa ocupando todo o fundo | `<wd-map-canvas>` em `position: fixed; inset: 0`; pan, zoom e arraste livres e independentes das barras. |
 | **Barra superior** fina: ☰ + ícone de livro à esquerda, **título do mapa centralizado** em caixa-alta serifada, usuário, busca e engrenagem à direita | `wd-top-bar`, 48 px, couro 95% opaco, filete dourado inferior. O título mostra o mapa ativo e abre o seletor de mapas. O ícone de livro volta à biblioteca (com animação). A busca abre a paleta de comandos. |
 | **Barra esquerda** flutuante com ferramentas em blocos quadrados | `wd-toolbar-left`: botões 44×44 com borda dourada sutil e tooltip à direita ("MARCAR PONTO", caixa-alta). Ferramenta ativa: fundo `ouro-400`, ícone `couro-950`. Sem botões de aproximar/afastar (o zoom é pela roda, pinça ou teclado); "enquadrar" recentra o mapa; camadas = visibilidade por camada. |
-| **Barra direita "EXPLORAR"** com abas Personagens, Locais, Eventos, História | `wd-explorer`: título centralizado, quatro abas com ícone + rótulo pequeno, aba ativa com filete dourado. Lista com retratos circulares com anel dourado e nome em serifa; itens **arrastáveis para o mapa**. **História** lista os Google Docs do mundo (capítulos, manuscritos). |
+| **Barra direita "EXPLORAR"** com abas Personagens, Locais, Eventos, História | `wd-explorer`: título centralizado, cinco abas com ícone + rótulo pequeno (Personagens, Locais, **Acervo**, Eventos, História), aba ativa com filete dourado. **Acervo** reúne facções, itens e notas, com chips para filtrar o tipo (decisão de 2026-11-11). Lista com retratos na forma do tipo, anel colorido e nome em serifa; itens **arrastáveis para o mapa**. **História** lista os Google Docs do mundo (capítulos, manuscritos). |
 | **Popover sobre o mapa** ancorado a um marcador | `wd-popover`: couro com borda dourada dupla e título em serifa; abre no hover/foco e expande para a ficha com um clique. |
 | Marcador de evento em **losango dourado com halo** | Token de evento: losango com anel pulsante suave enquanto o evento acontece no instante atual. |
 | Ícones de locais como **pequenos selos** | Tokens de local: selo quadrado arredondado com ícone. |
@@ -118,6 +118,7 @@ Cada tipo tem **forma própria**, nunca só a cor:
 | Evento | losango | `ouro-300` com halo |
 | Facção | escudo | `#8c5a3c` (cobre) |
 | Item | hexágono | `#b5a27a` (latão claro) |
+| Nota | folha com canto dobrado | `pergaminho-400` |
 
 O usuário pode trocar a cor de cada entidade, a partir de uma paleta "de tintas antigas" (sépia, vermelho-lacre, verde-musgo, azul-tinta, violeta-amora).
 
@@ -347,7 +348,7 @@ Todo componente portado: fica em `shared/motion/`, respeita movimento reduzido e
 - **Token de personagem**: retrato circular com anel dourado (2 px); nome em rótulo de pergaminho embaixo (zoom ≥ limiar ou hover); selecionado: anel duplo `ouro-300` com brilho e alças.
 - **Rastro de movimento**: linha tracejada `ouro-500` entre keyframes, com pequenos losangos em cada keyframe.
 - **Popover do mapa**: até 320 px; título em EB Garamond 20 px; ações em ícones na base.
-- **Ficha da entidade**: painel com **página de pergaminho**, retrato emoldurado e abas Resumo · Texto · Relações · Aparições · Documentos. Quando o texto é um Google Doc, um selo discreto "Google Doc" e o botão **Editar no Google Docs** ficam no topo da aba Texto.
+- **Ficha da entidade**: painel com **página de pergaminho**, retrato emoldurado e abas Resumo · Texto · Relações · Aparições · Documentos (no M2, só Resumo e Texto; as demais entram com os marcos que as alimentam). Sobre pergaminho, abas e controles usam `--wd-control-muted`, `--wd-control-selected` (couro-900) e `--wd-control-selected-rule` (ouro-700). Quando o texto é um Google Doc, um selo discreto "Google Doc" e o botão **Editar no Google Docs** ficam no topo da aba Texto.
 - **Texto de Google Doc**: mesma tipografia de livro; nomes de entidades sublinhados em pontilhado `ouro-700`; datas-âncora com pequeno losango dourado à esquerda.
 - **Confirmação destrutiva**: selo de lacre no topo e botão `lacre` com o nome do item ("Excluir 'Valmora'").
 

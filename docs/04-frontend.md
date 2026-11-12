@@ -13,7 +13,7 @@
 | Texto nativo | **Tiptap** | [ADR-0010](adr/0010-tiptap-como-editor.md) |
 | Google Docs | Docs API + conversor próprio para Tiptap | `docs/08` |
 | Mapa | **PixiJS v8 + pixi-viewport** | `docs/06` |
-| Busca no cliente | **MiniSearch** | entidades, eventos e Docs em cache |
+| Busca no cliente | **MiniSearch** | entidades, eventos e Docs em cache; `WorldSearch` (`domain/search`): prefixo, tolerância a erros, sem acento e caixa; nome pesa mais que apelidos, que pesam mais que o texto |
 | Textos da interface | Constantes em pt-BR (`core/strings`) | Sem biblioteca de i18n |
 | Ícones | **Material Symbols Rounded** (fonte variável auto-hospedada; é só um conjunto de ícones, independente do Angular Material) + SVGs próprios | Peso 300, preenchimento 0 nas barras |
 | Testes | Vitest, Angular Testing Library, Playwright | `docs/03` |
@@ -99,14 +99,14 @@ Todos em `shared/ui/`, standalone, `OnPush`, estilizados com Tailwind e tokens `
 | `wd-dialog` + `DialogService` | `@angular/cdk/dialog` | `DialogService.open(Componente, { data })`; o componente usa `<wd-dialog title surface ornate>` e marca as ações com `wdDialogAction`. Foco preso e restaurado, `aria-labelledby` no título, Esc fecha (salvo `disableClose`); superfície couro ou pergaminho; cantoneiras com `ornate` |
 | `wd-menu` | `@angular/cdk/menu` | menus de contexto de token e "⋯" |
 | `wd-select` / `wd-combobox` | CDK Listbox + Overlay | escolha de tipo, local, calendário |
-| `wd-tabs` | `ListKeyManager` (CDK A11y) + roles `tablist`/`tab`/`tabpanel` | abas do Explorar e da ficha |
+| `wd-tabs` | roles `tablist`/`tab`/`tabpanel`, foco itinerante | abas do Explorar (ícone + rótulo) e da ficha (texto); ativação automática, setas, Home e End; `tabId()`/`tabPanelId()` ligam aba e painel |
 | `wd-text-field` / `wd-textarea` | `<input>`/`<textarea>` nativos | rótulo sempre visível; erro abaixo do campo |
 | `wd-switch` / `wd-checkbox` | elementos nativos estilizados | — |
 | `wd-toast` + `ToastService` | CDK Overlay + `LiveAnnouncer` | substitui snackbar; `show({ message, kind, action })`; anuncia uma vez (erro como `assertive`), some em 5 s (8 s com ação), pausa no hover e no foco, no máximo 3; ação "Desfazer" quando couber |
 | `wd-popover` | CDK Overlay (posição conectada) | popover do mapa (`docs/05`) |
 | `wd-drop-zone` | diretiva própria | área de importação de mapa |
 | `wd-demo-badge` | `<span>`s com `role="note"` | selo do modo demonstração; textos por input (`label`, `detail`) |
-| `wd-virtual-list` | `cdk-virtual-scroll-viewport` | listas longas do Explorar |
+| (lista virtual) | `cdk-virtual-scroll-viewport` direto no Explorar | linhas de altura fixa (52 px); sem componente próprio enquanto houver um só uso |
 
 - **Ícones**: `<wd-icon name="…">` (Material Symbols Rounded, peso 300), sempre `aria-hidden`; o nome acessível fica no controle.
 - **Textos dentro de `shared/ui`** ("Fechar", "Dispensar aviso"): `shared` não importa `core`, então os componentes leem o token `WD_UI_STRINGS`, fornecido no `app.config` com `provideUiStrings(UI_STRINGS)` a partir de `core/strings`.
@@ -119,7 +119,8 @@ Acompanhar o **Angular Aria** (componentes acessíveis sem estilo do próprio An
 |-------|--------|----------|
 | `SessionStore` | raiz | usuário (`core/auth`, NgRx SignalStore sobre a porta `AuthService`) |
 | `UiPrefsStore` | raiz | `profiles.ui_prefs` pela porta `ProfileRepository` (`core/prefs`): barras e câmera por mapa; muda na hora e grava em lote depois de 800 ms |
-| `WorldStore` | rota `w/:worldId` | mundo, mapas (árvore, mapa ativo, importação e envio em segundo plano); depois calendário, entidades, eventos, membros, Docs |
+| `WorldStore` | rota `w/:worldId` | mundo, mapas (árvore, mapa ativo, importação e envio em segundo plano); depois calendário, membros, Docs |
+| `EntityStore` | rota `w/:worldId` | entidades e eventos do mundo, ficha aberta (`?sel=`), retratos, status de gravação e o índice de busca (`WorldSearch`) |
 | `MapStore` | rota `w/:worldId` | cena do mapa ativo (links; depois tokens, keyframes, anotações), seleção |
 | `TimelineStore` | rota `w/:worldId` | `currentTick`, faixa visível, zoom, `isPlaying`, velocidade |
 | `ToolStore` | rota `w/:worldId` | ferramenta ativa e opções |
@@ -147,7 +148,11 @@ Regras:
 - Barras como overlays com `pointer-events` só nelas; o resto passa eventos ao canvas.
 - Larguras redimensionáveis (CDK Drag no eixo X; setas na alça, que é um `separator`), salvas em `profiles.ui_prefs`.
 - O motor recebe a área coberta pelas barras (`setInsets`) para enquadrar o mapa na parte livre.
-- No M1, a barra direita é só a moldura do Explorar com o estado vazio; abas e lista chegam no M2.
+- **Explorar** (M2): abas Personagens, Locais, **Acervo** (facções, itens e notas, com filtro por tipo), Eventos (só leitura até o M3) e História (vazia até os Google Docs). Filtro pela busca do mundo (mostra o apelido que casou), botão `+` com o tipo da aba e lista virtual. As linhas são arrastáveis (`application/x-wd-entity`); o mapa aceita o arraste no M4.
+- **Ficha** (`wd-entity-sheet`): página de pergaminho sobre o Explorar (mínimo 440 px), com retrato, nome, status ("Salvando…", "Salvo") e as abas **Resumo** (subtítulo, tipo, cor do anel, apelidos, etiquetas, "Citada em", lixeira) e **Texto** (editor). Esc fecha e devolve o foco à linha. Relações, Aparições e Documentos chegam com os marcos que os alimentam.
+- **Autosave da ficha**: a `EntityStore` aplica a edição na hora e grava 600 ms depois da última mudança, uma gravação por vez por entidade. Conflito recarrega a entidade e avisa; outras falhas guardam a edição e oferecem "Tentar de novo". A lixeira mostra "Desfazer".
+- **Retrato**: o arquivo passa pelas mesmas checagens do mapa, vira um quadrado de até 512 px em WebP (sem EXIF) e vai para a porta `AssetRepository`; o anterior é apagado.
+- **Paleta `Ctrl/Cmd+K`** (também a lupa da barra superior): combobox com Entidades, Eventos, Comandos (criar entidade, enquadrar, Explorar, biblioteca) e Mapas.
 - Recolher/expandir anima `transform`, nunca `width`.
 - **Mundo sem mapa**: o canvas dá lugar à área de importação ([`docs/06` §0](06-mapa-e-tempo.md#0-importar-o-mapa-arrastar-e-soltar)).
 - A ficha da entidade abre como painel deslizante sobre o Explorar (desktop) ou folha inferior (tablet).
@@ -179,9 +184,10 @@ Registrados num `ShortcutService` (`core/shortcuts`) com escopo, desativados qua
 
 ## Textos
 ### Nativo (Tiptap)
-- Extensões: StarterKit, Link (protocolos `https:` e `mailto:`), Image (só imagens do próprio mundo), Placeholder, CharacterCount e **Mention** (`@` para citar entidades → `entity_mentions`).
-- Salvo como JSON em `content`; texto puro em `content_text` para busca.
-- Carregado com `@defer (on interaction)`.
+- Extensões: StarterKit (títulos 2 e 3, sem código), Link (protocolos `https:` e `mailto:`), Placeholder, CharacterCount e **Mention** (`@` lista entidades por nome ou apelido → `entity_mentions`). Image (só imagens do próprio mundo) fica para quando houver inserção de imagens no texto.
+- Salvo como JSON em `content`; texto puro em `content_text` (`richTextToPlain`, em `domain/entities`) para busca. Texto vazio grava `null`. Ao gravar, a `EntityStore` regrava as menções do texto pela porta `MentionRepository`.
+- Carregado com `@defer` ao abrir a aba Texto, num chunk próprio.
+- Clicar numa menção com o editor fora de foco (ou com `Ctrl`) abre a ficha citada.
 
 ### Google Doc
 - Renderizado pelo mesmo esquema Tiptap, **somente leitura**, a partir do conversor em `domain/gdocs/` (`docs/08`).
