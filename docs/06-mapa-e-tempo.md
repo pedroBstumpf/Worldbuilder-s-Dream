@@ -12,7 +12,7 @@ Fluxo técnico:
 4. Se o lado maior passar de **8192 px**, a imagem é **reduzida automaticamente** a 8192 px (em etapas de metade, para não serrilhar; com aviso "reduzimos para caber na GPU"), em vez de ser recusada.
 5. Conversão para **WebP** (qualidade 0,9; remove metadados EXIF) e geração de miniatura de 512 px para a biblioteca. A miniatura do primeiro mapa de raiz vira a capa do mundo (`worlds.cover_asset_id`), exibida no frontispício e na página do mapa do livro. Navegador sem codificador WebP no `OffscreenCanvas` gera PNG.
 6. A cena carrega **imediatamente** a partir do bitmap local. O registro do mapa (`maps`, com `width`/`height` reais) é criado antes do envio, e o arquivo segue em segundo plano (Storage do Supabase por padrão; pasta do mundo no Google Drive se o usuário preferir, ver [ADR-0007](adr/0007-armazenamento-de-imagens.md)). Um anel na barra superior mostra o envio; se falhar, um aviso oferece "Tentar de novo" sem perder a imagem, que fica em memória (`WorldStore`) até o envio concluir. Guardar essa fila em IndexedDB, para sobreviver a uma recarga, entra com o adaptador do Supabase (Fase 2).
-   - Com um mapa aberto, soltar ou colar uma imagem pergunta: **criar novo mapa** (filho do atual na árvore) ou **substituir a imagem** deste mapa. Substituir reescalona links, keyframes e a escala para a nova resolução.
+   - Com um mapa aberto, soltar ou colar uma imagem pergunta: **criar novo mapa** (filho do atual na árvore), **substituir a imagem** deste mapa ou **nova versão a partir de <data do cursor>** (ver [Versões da imagem no tempo](#versões-da-imagem-no-tempo)). Substituir reescalona links, keyframes e a escala para a nova resolução.
 7. Escala (`scale_value`/`scale_unit`) fica nula até o usuário definir; enquanto isso, a régua mede em pixels do mapa. **Definir escala** (barra esquerda, menu do título ou aviso depois da importação): dois cliques sobre a escala gráfica do mapa e o comprimento real num diálogo (`scale_value = comprimento / pixels`).
 
 ## 1. Motor de renderização
@@ -85,6 +85,15 @@ type EngineEvent =
 - **Coordenadas do mundo = pixels da imagem original do mapa** (0,0 no canto superior esquerdo). Independe do tamanho de tela e do zoom.
 - Cada mapa tem `scale_value` + `scale_unit` (ex.: `1 px = 0.5 km`), configurado pelo usuário desenhando uma linha sobre a escala gráfica do mapa e informando o comprimento.
 - Se a imagem for substituída por outra de resolução diferente, guardamos `width/height` originais e reescalonamos coordenadas proporcionalmente.
+
+### Versões da imagem no tempo
+Um mapa pode trocar de imagem conforme o instante (o continente antes e depois do cataclismo, a cidade que cresce), sem virar outro mapa: tokens, anotações, links e escala continuam os mesmos.
+- **Modelo** (`map_image_versions`): `(map_id, image_asset_id, tick_start)`. A imagem de `maps.image_asset_id` vale até a primeira versão; cada versão vale de `tick_start` até o `tick_start` da seguinte (a última vale para sempre). No instante `t`, vale a versão com o maior `tick_start ≤ t` (busca binária, como os keyframes). Dois `tick_start` iguais no mesmo mapa são proibidos.
+- **Mesmo espaço de coordenadas**: toda versão é desenhada esticada para `maps.width × maps.height`. Se a proporção diferir mais de 1 % da imagem base, a importação avisa que tokens e anotações podem ficar deslocados e oferece cortar ou enquadrar com margens (cor de fundo).
+- **Criar**: soltar ou colar uma imagem com o mapa aberto e escolher "Nova versão a partir de <data>" (o cursor da linha do tempo, ajustável no diálogo), ou pelo seletor no título › **Versões da imagem**. Esse painel lista "Imagem inicial" e as versões em ordem, com miniatura e data (`wd-date-input`), e permite mudar a data, substituir a imagem e remover a versão (com "Desfazer").
+- **Linha do tempo**: o início de cada versão aparece no trilho como um pequeno marcador de página; o popover mostra a miniatura e "Ir para a data".
+- **Motor**: `MapScene` traz `imageVersions`; `setTime` escolhe a versão e troca a textura do Background com fade cruzado de 300 ms (só `opacity`; troca imediata com movimento reduzido ou durante o play acima de 1 ano/s). Para caber na memória da GPU (uma imagem de 8192 px ocupa ~256 MB), ficam carregadas no máximo a versão atual e a seguinte no sentido do movimento; as outras são liberadas e recarregadas sob demanda, com a anterior visível até a nova chegar.
+- Capa do mundo e miniatura da biblioteca usam a imagem inicial. A exportação em JSON inclui as versões.
 
 ### Desempenho
 - **Culling** de tokens fora da viewport; rótulos só acima de um limiar de zoom.
