@@ -18,7 +18,7 @@ import { TIME_STRINGS } from '@core/strings/time.strings';
 import type { Point } from '@domain/geometry';
 import type { PolygonVertex, Tick, Uuid } from '@domain/models';
 import type { MapScene } from '@domain/ports';
-import { isEventActive } from '@domain/timeline';
+import { evaluateKeyframes, isEventActive, sortKeyframes } from '@domain/timeline';
 import {
   LAYER_IDS,
   type Camera,
@@ -36,6 +36,8 @@ import { MAP_ENGINE_FACTORY } from './map-engine.token';
 /** Passo das setas, em px de tela (Shift: passo grande). */
 const PAN_STEP = 80;
 const ZOOM_STEP = 1.25;
+/** Espera máxima pelo `contextmenu` depois do botão direito num token. */
+const MENU_FALLBACK_MS = 400;
 
 export interface CameraChange {
   mapId: Uuid;
@@ -69,8 +71,27 @@ export interface EventHover {
       (dragover)="onDragOver($event)"
       (dragleave)="onDragLeave($event)"
       (drop)="onDrop($event)"
+      (contextmenu)="onContextMenu($event)"
     ></div>
     <p id="wd-map-instructions" class="sr-only">{{ text.instructions }}</p>
+    @if (visibleTokens().length > 0) {
+      <nav class="links" [attr.aria-label]="tokenText.list">
+        <ul>
+          @for (token of visibleTokens(); track token.id) {
+            <li>
+              <button
+                type="button"
+                class="link wd-focus"
+                [attr.data-token]="token.id"
+                (click)="openTokenMenu(token.id)"
+              >
+                {{ tokenText.listItem(token.name) }}
+              </button>
+            </li>
+          }
+        </ul>
+      </nav>
+    }
     @if (visibleEvents().length > 0) {
       <nav class="links" [attr.aria-label]="eventText.list">
         <ul>
@@ -189,6 +210,41 @@ export class MapCanvasComponent {
 
   protected readonly text = MAP_STRINGS.canvas;
   protected readonly eventText = TIME_STRINGS.events.map;
+  protected readonly tokenText = MAP_STRINGS.tokens;
+
+  /** Keyframes de cada token de entidade, ordenados (só muda com a cena). */
+  private readonly entityTokens = computed(() => {
+    const scene = this.scene();
+    if (!scene) return [];
+    return scene.tokens
+      .filter((token) => token.entityId !== null)
+      .map((token) => ({
+        token,
+        keyframes: sortKeyframes(scene.keyframes.filter((k) => k.tokenId === token.id)),
+      }));
+  });
+
+  /**
+   * Lista acessível espelhada (docs/04 › Acessibilidade): tokens visíveis no instante. Só
+   * muda quando um token aparece ou some, não a cada quadro do play.
+   */
+  protected readonly visibleTokens = computed(
+    () => {
+      const tick = this.time();
+      const names = new Map(this.looks().map((look) => [look.entityId, look.name]));
+      return this.entityTokens()
+        .filter(({ keyframes }) => evaluateKeyframes(keyframes, tick) !== null)
+        .map(({ token }) => ({
+          id: token.id,
+          name: names.get(token.entityId ?? '') ?? this.tokenText.unnamed,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    },
+    {
+      equal: (a, b) =>
+        a.length === b.length && a.every((t, i) => t.id === b[i]?.id && t.name === b[i]?.name),
+    },
+  );
 
   /** Eventos com marcador neste mapa agora (também como botões, para teclado e leitor). */
   protected readonly visibleEvents = computed(() => {
@@ -209,6 +265,12 @@ export class MapCanvasComponent {
   private readonly drag = inject(EntityDrag);
   private readonly engine = signal<MapEngine | null>(null);
   private loaded: { mapId: Uuid; image: MapImageSource | null } | null = null;
+  /** Menu pedido pelo botão direito, à espera do `contextmenu` nativo. */
+  private pendingMenu: {
+    tokenId: Uuid;
+    anchor: Point;
+    timer: ReturnType<typeof setTimeout>;
+  } | null = null;
 
   protected mapName(): string {
     return this.scene()?.map.name ?? '';
@@ -278,7 +340,7 @@ export class MapCanvasComponent {
             this.tokenOpen.emit(event.tokenId);
             break;
           case 'token:menu':
-            this.tokenMenu.emit({ tokenId: event.tokenId, anchor: event.anchor });
+            this.deferMenu({ tokenId: event.tokenId, anchor: event.anchor });
             break;
         }
       });
@@ -349,6 +411,43 @@ export class MapCanvasComponent {
     const engine = this.engine();
     const at = engine?.tokenPosition(tokenId);
     return engine && at ? engine.worldToScreen(at) : null;
+  }
+
+  /**
+   * O botão direito chega ao motor no `pointerdown`, mas o `contextmenu` nativo vem depois
+   * e o menu (CDK) o trataria como clique fora, fechando-se. O menu abre nesse evento; se
+   * ele não vier (alguns sistemas o disparam antes), abre logo depois.
+   */
+  private deferMenu(menu: { tokenId: Uuid; anchor: Point }): void {
+    if (this.pendingMenu) clearTimeout(this.pendingMenu.timer);
+    const timer = setTimeout(() => this.flushMenu(), MENU_FALLBACK_MS);
+    this.pendingMenu = { ...menu, timer };
+  }
+
+  private flushMenu(): void {
+    const menu = this.pendingMenu;
+    if (!menu) return;
+    clearTimeout(menu.timer);
+    this.pendingMenu = null;
+    this.tokenMenu.emit({ tokenId: menu.tokenId, anchor: menu.anchor });
+  }
+
+  /** O menu do navegador nunca abre sobre o mapa; o do token abre aqui. */
+  protected onContextMenu(event: MouseEvent): void {
+    event.preventDefault();
+    // Depois do evento atual: o despachante de cliques fora do CDK já o viu.
+    if (this.pendingMenu) setTimeout(() => this.flushMenu());
+  }
+
+  /** Botão da lista acessível: seleciona o token e abre o menu dele, ancorado no token. */
+  protected openTokenMenu(tokenId: Uuid): void {
+    const host = this.host().nativeElement.getBoundingClientRect();
+    const anchor = this.tokenAnchor(tokenId) ?? {
+      x: host.left + host.width / 2,
+      y: host.top + host.height / 2,
+    };
+    this.tokenSelected.emit([tokenId]);
+    this.tokenMenu.emit({ tokenId, anchor });
   }
 
   /** Arraste de uma entidade do Explorar: aceita e mostra o fantasma do token. */

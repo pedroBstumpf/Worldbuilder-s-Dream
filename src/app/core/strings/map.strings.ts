@@ -136,6 +136,36 @@ export const MAP_STRINGS = {
     interpolation: (mode: string) => `Movimento: ${mode}.`,
     failed: 'Não foi possível gravar a mudança no mapa. O mapa voltou ao que está gravado.',
     unnamed: 'Sem nome',
+    /** Lista acessível espelhada (docs/04 › Acessibilidade). */
+    list: 'Tokens no mapa agora',
+    listItem: (name: string) => `${name}: opções do token`,
+    menu: {
+      label: (name: string) => `Token de ${name}`,
+      openSheet: 'Abrir ficha',
+      previous: 'Ir para a posição anterior',
+      next: 'Ir para a próxima posição',
+      movement: (date: string) => `Movimento a partir de ${date}`,
+      showPath: 'Mostrar caminho',
+      hidePath: 'Esconder caminho',
+      hide: 'Sair do mapa aqui',
+      removeKeyframe: (date: string) => `Remover a posição de ${date}`,
+      remove: 'Tirar do mapa',
+    },
+    /** Modos de interpolação (docs/06 §3) com nomes para quem escreve. */
+    interpolationNames: { linear: 'Constante', step: 'Em salto', ease: 'Suave' },
+    interpolationHints: {
+      linear: 'Velocidade constante até a próxima posição.',
+      step: 'Fica parado e salta para a próxima posição.',
+      ease: 'Acelera na saída e freia na chegada.',
+    },
+    removeDialog: {
+      title: 'Remover do mapa',
+      question: (name: string) => `O que remover de ${name} neste mapa?`,
+      keyframe: (date: string) => `Só a posição de ${date}`,
+      token: 'O token inteiro, com todas as posições',
+      several: (n: number) => `${n} tokens selecionados.`,
+      cancel: 'Cancelar',
+    },
   },
   /** Desfazer e refazer (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z). */
   history: {
