@@ -11,7 +11,7 @@ import type { MapTreeRow } from '@domain/maps';
 import type { Uuid, WorldMap } from '@domain/models';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 
-export type MapTitleAction = 'rename' | 'move-to-root' | 'scale' | 'import';
+export type MapTitleAction = 'rename' | 'move-to-root' | 'scale' | 'import' | 'versions';
 
 /**
  * Título do mapa na barra superior (docs/05): mostra o mapa ativo e abre o seletor com a
@@ -87,6 +87,14 @@ export type MapTitleAction = 'rename' | 'move-to-root' | 'scale' | 'import';
             (cdkMenuItemTriggered)="action.emit('import')"
           >
             <wd-icon name="add_photo_alternate" size="sm" />{{ text.importAnother }}
+          </button>
+          <button
+            type="button"
+            class="wd-menu-item"
+            cdkMenuItem
+            (cdkMenuItemTriggered)="action.emit('versions')"
+          >
+            <wd-icon name="history" size="sm" />{{ text.versions }}
           </button>
         </div>
         @if (links().length > 0) {
