@@ -273,7 +273,7 @@ const PREFIX = 'wd-sheet';
   styles: `
     :host {
       position: fixed;
-      inset-block: 64px 12px;
+      inset-block: 64px calc(var(--wd-bottom-bar, 0px) + 12px);
       inset-inline-end: 12px;
       z-index: 10;
       display: block;

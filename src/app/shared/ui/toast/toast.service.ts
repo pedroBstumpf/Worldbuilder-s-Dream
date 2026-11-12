@@ -106,7 +106,8 @@ export class ToastService implements ToastController {
     this.overlayRef = createOverlayRef(this.injector, {
       positionStrategy: createGlobalPositionStrategy(this.injector)
         .centerHorizontally()
-        .bottom('1.5rem'),
+        // Telas com barra inferior (linha do tempo) definem --wd-toast-offset na raiz.
+        .bottom('calc(var(--wd-toast-offset, 0px) + 1.5rem)'),
       panelClass: 'wd-toast-pane',
     });
     const hostRef = this.overlayRef.attach(new ComponentPortal(ToastHostComponent));

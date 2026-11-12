@@ -233,7 +233,7 @@ interface Row {
   styles: `
     :host {
       position: fixed;
-      inset-block: 64px 12px;
+      inset-block: 64px calc(var(--wd-bottom-bar, 0px) + 12px);
       inset-inline-end: 12px;
       display: flex;
       flex-direction: row-reverse;
