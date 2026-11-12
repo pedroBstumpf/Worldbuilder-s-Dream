@@ -268,3 +268,99 @@ describe('MapStore (tokens de entidade)', () => {
     expect(history.canUndo()).toBe(false);
   });
 });
+
+describe('MapStore (anotações)', () => {
+  let teardown: () => Promise<void>;
+  let store: InstanceType<typeof MapStore>;
+  let history: InstanceType<typeof HistoryStore>;
+  let repo: MapRepository;
+  let map: WorldMap;
+  const pin = { kind: 'pin', at: { x: 10, y: 20 }, color: '#a33a2a', icon: 'castle' } as const;
+  const saved = async () => (await repo.getScene(map.id))?.annotations ?? [];
+
+  beforeEach(async () => {
+    ({ teardown } = await setUpLocalTestBed([MapStore, HistoryStore]));
+    const world = await TestBed.inject(WorldRepository).create(
+      { id: crypto.randomUUID(), name: 'Eldoria' },
+      DEFAULT_CALENDAR,
+    );
+    repo = TestBed.inject(MapRepository);
+    map = await repo.create({
+      id: crypto.randomUUID(),
+      worldId: world.id,
+      name: 'Continente',
+      width: 1000,
+      height: 800,
+    });
+    store = TestBed.inject(MapStore);
+    history = TestBed.inject(HistoryStore);
+    await store.load(map, null);
+  });
+
+  afterEach(() => teardown());
+
+  it('cria um pino e grava geometria e estilo', async () => {
+    const created = await store.addAnnotation(pin, { title: 'Forte' });
+    expect(store.scene()?.annotations).toEqual([expect.objectContaining({ id: created.id })]);
+    expect(await saved()).toEqual([
+      expect.objectContaining({
+        kind: 'pin',
+        title: 'Forte',
+        geometry: { x: 10, y: 20 },
+        style: { color: '#a33a2a', icon: 'castle' },
+        tickStart: null,
+        tickEnd: null,
+      }),
+    ]);
+  });
+
+  it('edita várias vezes seguidas, acompanhando a versão gravada', async () => {
+    const created = await store.addAnnotation(pin);
+    await store.updateAnnotation(created.id, { title: 'Torre' });
+    await store.updateAnnotation(created.id, { tickStart: 300, tickEnd: 450 });
+    expect(await saved()).toEqual([
+      expect.objectContaining({ title: 'Torre', tickStart: 300, tickEnd: 450, version: 3 }),
+    ]);
+    expect(store.scene()?.annotations[0]?.version).toBe(3);
+  });
+
+  it('recusa validade que termina antes de começar', async () => {
+    const created = await store.addAnnotation(pin);
+    await expect(
+      store.updateAnnotation(created.id, { tickStart: 500, tickEnd: 100 }),
+    ).rejects.toThrow();
+    expect(store.scene()?.annotations[0]?.tickStart).toBeNull();
+  });
+
+  it('desfaz e refaz edição e remoção, também no repositório', async () => {
+    const created = await store.addAnnotation(pin);
+    await store.updateAnnotation(created.id, { title: 'Torre' });
+    await store.removeAnnotations([created.id], 'erase');
+    expect(await saved()).toEqual([]);
+
+    expect(await history.undo()).toBe('erase');
+    expect(await saved()).toEqual([expect.objectContaining({ title: 'Torre' })]);
+    expect(await history.undo()).toBe('editAnnotation');
+    expect((await saved())[0]?.title).toBeNull();
+    expect(await history.undo()).toBe('addPin');
+    expect(await saved()).toEqual([]);
+
+    await history.redo();
+    await history.redo();
+    expect(await saved()).toEqual([expect.objectContaining({ title: 'Torre' })]);
+    expect(store.scene()?.annotations[0]?.title).toBe('Torre');
+  });
+
+  it('não grava edição que não muda nada', async () => {
+    const created = await store.addAnnotation(pin);
+    await store.updateAnnotation(created.id, { title: null });
+    expect(history.past()).toHaveLength(1);
+  });
+
+  it('volta ao que está gravado se a gravação falhar', async () => {
+    vi.spyOn(repo, 'createAnnotation').mockRejectedValueOnce(new Error('offline'));
+    await expect(store.addAnnotation(pin)).rejects.toThrow('offline');
+    expect(store.scene()?.annotations).toEqual([]);
+    expect(history.canUndo()).toBe(false);
+  });
+});
