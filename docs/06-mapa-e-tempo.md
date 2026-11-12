@@ -42,6 +42,9 @@ export interface MapEngine {
   previewDrop(drop: { entityId; clientX; clientY } | null): void; // fantasma do arraste (§6)
   setTrails(tokenIds: string[]): void;                 // tokens com rastro à mostra
   tokenPosition(tokenId: string): Point | null;        // âncora do menu do token
+  setDrawStyle(style: BrushStyle): void;               // cor, espessura, opacidade, pontilhado (M5)
+  setActiveAnnotation(id: string | null): void;        // anotação aberta no editor (destaque)
+  setDistanceFormat(format: ((px: number) => string) | null): void; // texto das medições
 
   screenToWorld(clientX: number, clientY: number): Point;
   worldToScreen(p: Point): Point;
@@ -61,8 +64,10 @@ type EngineEvent =
   | { type: 'token:menu'; tokenId: string; anchor: Point } // botão direito
   | { type: 'keyframe:moved'; keyframeId: string; to: Point } // losango do rastro arrastado
   | { type: 'keyframe:picked'; keyframeId: string; tick: number } // clique no losango
-  | { type: 'annotation:created'; draft: AnnotationDraft }
-  | { type: 'annotation:changed'; id: string; patch: Partial<AnnotationDraft> }
+  | { type: 'annotation:created'; draft: AnnotationShape }        // pino, rótulo, traço, região
+  | { type: 'annotation:changed'; id: string; shape: AnnotationShape } // pino ou rótulo arrastado
+  | { type: 'annotation:erased'; ids: string[] }                  // fim de uma passada da borracha
+  | { type: 'annotation:picked'; id: string; anchor: Point }      // clique: abre o editor
   | { type: 'measure'; points: Point[]; distance: number }
   | { type: 'camera'; center: Point; zoom: number }
   | { type: 'link:open'; linkId: string; targetMapId: string }   // lupa ou duplo clique na região
@@ -72,10 +77,10 @@ type EngineEvent =
   | { type: 'event:open'; eventId: string }                     // clique num marcador de evento
   | { type: 'event:hover'; eventId: string | null; anchor: Point }; // popover
 ```
-- `ScenePatch` inclui `{ type: 'events'; events; window }`: os eventos do mundo (datas, cor, local) e a janela dos pontuais, e `{ type: 'looks'; looks }`: nome, tipo, cor e retrato de cada entidade (a aparência dos tokens). Os dois valem antes de qualquer cena, porque são do mundo, não do mapa.
+- `ScenePatch` inclui `{ type: 'annotations'; annotations }` (anotações do mapa aberto), `{ type: 'events'; events; window }`: os eventos do mundo (datas, cor, local) e a janela dos pontuais, e `{ type: 'looks'; looks }`: nome, tipo, cor e retrato de cada entidade (a aparência dos tokens). Os dois valem antes de qualquer cena, porque são do mundo, não do mapa.
 - O motor é criado por uma fábrica assíncrona (`MAP_ENGINE_FACTORY`, padrão `createPixiMapEngine`), que carrega o PixiJS sob demanda num chunk próprio. Os testes de componente usam `FakeMapEngine` (`map-engine/testing`).
 - O componente `wd-map-canvas` é um adaptador fino: cria o motor, passa cena, ferramenta, camadas, margens das barras (a de baixo é a linha do tempo), instante (`engine.setTime(timeline.currentTick())`) e eventos, restaura a câmera salva e traduz `events` em saídas para as stores. Com o foco no mapa, as setas movem (`Shift`: passo grande), `+`/`−` aproximam e `0` enquadra.
-- **Ferramentas do M1**: `pan` (padrão), `select`, `calibrate` (escala) e `link`. No M3, `place`: um clique escolhe um ponto (Enter: o centro da área visível; Esc cancela), usado para marcar um evento e, no M4, a posição de uma entidade pela ficha. O Enter manda a ferramenta junto (`commitTool(tool)`), porque o input só chega ao motor na próxima detecção de mudanças. As demais chegam no M5.
+- **Ferramentas do M1**: `pan` (padrão), `select`, `calibrate` (escala) e `link`. No M3, `place`: um clique escolhe um ponto (Enter: o centro da área visível; Esc cancela), usado para marcar um evento e, no M4, a posição de uma entidade pela ficha. O Enter manda a ferramenta junto (`commitTool(tool)`), porque o input só chega ao motor na próxima detecção de mudanças. No M5, as de anotação (§5): `pin`, `brush`, `eraser`, `measure`, `region` e `label` (`DRAWING_TOOLS` reúne as que desenham: nelas tokens, links e eventos não respondem ao ponteiro). O host do canvas fica `aria-busy` até o motor desenhar a cena; antes disso cliques e teclas não chegam ao mapa.
 - **Tokens no motor (M4)**: `TokenLayer` desenha cada token com a forma do tipo (a mesma do avatar do Explorar), anel na cor da entidade, retrato, inicial ou ícone, e o nome num rótulo de pergaminho (sempre a partir de zoom 0,35; abaixo disso, no hover e na seleção). As texturas (96 px) são geradas por aparência e compartilhadas (`TokenFaces`). Arrastar um token funciona em "Mover mapa" e em "Selecionar"; em "Selecionar", arrastar o fundo desenha o retângulo de seleção e o botão do meio move o mapa. `TrailLayer` desenha o rastro (camada de rotas).
 - **Câmera**: zoom de metade do enquadramento até 8 px de tela por px do mapa; o ponto no meio da área visível nunca sai do mapa. A câmera de cada mapa fica em `profiles.ui_prefs.cameras` (as 60 mais recentes).
 - Animações de câmera ≤ 200 ms; com movimento reduzido, sem desaceleração nem zoom suave.
@@ -218,6 +223,15 @@ Na interface, keyframes são **posições** e os modos de interpolação têm no
 | **Texto** (X) | rótulo livre no mapa | `kind='label'` |
 
 Toda anotação tem `tick_start`/`tick_end` opcionais (nulos = sempre visível). Ex.: a fronteira de um reino desenhada em 300–450 desaparece depois de 450.
+
+**Como ficou no M5** (decisões de 2026-11-12):
+- **Barra esquerda**: Selecionar, Mover │ Marcar ponto, Pincel, Borracha (no lugar dos antigos botões de zoom) │ Régua, Região, Texto │ Enquadrar, Camadas │ Escala, Link. Clicar de novo na ferramenta ativa volta a "Mover mapa"; Esc sai da ferramenta (na régua, o primeiro Esc só limpa a medição).
+- **Formato** (`domain/maps/annotations.ts`): pino e rótulo `{x, y}`; traço `{points: [[x, y]…]}` (até 4.000 pontos, px do mapa com uma casa); região `{polygon}`; medição `{points}`. Estilo: `color` (tintas antigas + nanquim e giz, `ANNOTATION_INK_COLORS`), `icon` do pino, `size` do rótulo, `width` (px do mapa: a espessura escolhida na tela dividida pelo zoom do traço), `opacity` e `dashed`. A leitura é tolerante: geometria inválida não desenha, estilo desconhecido cai no padrão.
+- **Faixa de opções** ao lado da barra (pino, pincel e região): cor; no pincel, espessura, opacidade e linha contínua ou pontilhada. Vale para as próximas anotações. O rótulo nasce em giz com contorno escuro.
+- **Editor** num popover junto da anotação (abre ao criar pino, rótulo ou região e ao clicar numa anotação): título ou texto, cor, ícone do pino, tamanho do rótulo, linha e opacidade, vínculo a entidade ou evento (pino e região, com "Abrir ficha"), validade ("A partir de" e "Até" nascem no cursor) e excluir com "Desfazer". Pinos e rótulos respondem em Mover e Selecionar (clique abre, arrastar move); traços, regiões e medições, só em Selecionar.
+- **Desfazer**: toda criação, edição, arraste e exclusão passa pela `MapStore` (`putAnnotations`/`removeAnnotations` no `SceneChange`); uma passada da borracha é uma edição só.
+- **Acessibilidade**: as anotações visíveis no instante viram botões ("Pino: Forte do Norte") que abrem o editor; Enter com Marcar ponto ou Texto põe a anotação no centro da área visível.
+- **Camadas**: regiões e traços ficam sob os links (camada de regiões); pinos, rótulos e medições, sob as lupas (camada de rótulos), com tamanho constante na tela. O menu de camadas esconde regiões e traços, rastros, tokens e eventos, pinos e rótulos.
 
 ## 6. Drag-and-drop barra → mapa
 - As linhas do Explorar usam o **arraste nativo do HTML** (`draggable`, tipo `application/x-wd-entity` com o id), que convive com a lista virtual (decisão de 2026-11-12; antes previsto com CDK Drag). A importação de imagem só reage a arrastes com arquivos, então os dois não se confundem.
