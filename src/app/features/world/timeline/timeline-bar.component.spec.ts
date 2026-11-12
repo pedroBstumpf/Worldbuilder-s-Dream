@@ -109,4 +109,24 @@ describe('TimelineBarComponent', () => {
     expect(speed.textContent?.trim()).toBe('1.000 anos/s');
     expect(speed.getAttribute('aria-label')).toContain('Clique para configurar');
   });
+
+  it('marca as versões da imagem e vai à data pelo popover', async () => {
+    const { fixture } = await render();
+    fixture.componentRef.setInput('imageVersions', [
+      { id: 'v1', tick: yearStart(40), url: 'blob:v1' },
+    ]);
+    await fixture.whenStable();
+    const marker = fixture.nativeElement.querySelector('[data-version-id="v1"]') as HTMLElement;
+    expect(marker.getAttribute('aria-label')).toMatch(/^Versão da imagem do mapa a partir de/);
+
+    marker.dispatchEvent(new FocusEvent('focus'));
+    await fixture.whenStable();
+    const popover = fixture.nativeElement.querySelector('.version-popover') as HTMLElement;
+    expect(popover.querySelector('img')?.getAttribute('src')).toBe('blob:v1');
+    (popover.querySelector('button') as HTMLButtonElement).click();
+    await fixture.whenStable();
+
+    expect(TestBed.inject(TimelineStore).currentTick()).toBe(yearStart(40));
+    expect(fixture.nativeElement.querySelector('.version-popover')).toBeNull();
+  });
 });
