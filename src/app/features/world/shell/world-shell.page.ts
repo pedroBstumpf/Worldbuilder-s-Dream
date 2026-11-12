@@ -23,11 +23,12 @@ import { readCamera, writeBarPrefs, writeCamera, type BarPrefs } from '@core/pre
 import { UiPrefsStore } from '@core/prefs/ui-prefs.store';
 import { ShortcutService } from '@core/shortcuts/shortcut.service';
 import { DEMO_STRINGS } from '@core/strings/demo.strings';
+import { ENTITY_KIND_STRINGS, ENTITY_STRINGS } from '@core/strings/entity.strings';
 import { MAP_STRINGS } from '@core/strings/map.strings';
 import { WORLD_STRINGS } from '@core/strings/world.strings';
 import type { Point } from '@domain/geometry';
 import { mapNameFromFile } from '@domain/maps';
-import type { PolygonVertex, Uuid } from '@domain/models';
+import type { EntityKind, PolygonVertex, Uuid } from '@domain/models';
 import { MapImageError, readMapImage, type ProcessedMapImage } from '@engine/import/read-map-image';
 import type { LayerId, ToolId, ViewportInsets } from '@engine/map-engine';
 import { DemoBadgeComponent } from '@shared/ui/demo-badge/demo-badge.component';
@@ -39,6 +40,11 @@ import {
   ImportChoiceDialogComponent,
   type ImportChoice,
 } from '../import/import-choice-dialog.component';
+import {
+  CreateEntityDialogComponent,
+  type CreateEntityResult,
+} from '../entities/create-entity-dialog.component';
+import { EntitySheetComponent } from '../entities/entity-sheet.component';
 import { MapImportAreaComponent } from '../import/map-import-area.component';
 import { MapImportDirective } from '../import/map-import.directive';
 import { pickImageFile } from '../import/pick-image-file';
@@ -52,6 +58,13 @@ import {
   type ScaleDialogResult,
 } from '../map/map-dialogs';
 import { MapTitleComponent, type MapTitleAction } from '../map/map-title.component';
+import {
+  CommandPaletteComponent,
+  type PaletteCommand,
+  type PaletteData,
+  type PaletteResult,
+} from '../search/command-palette.component';
+import { EntityStore } from '../state/entity.store';
 import { MapStore } from '../state/map.store';
 import { WorldStore } from '../state/world.store';
 import { ExplorerPanelComponent } from './explorer-panel.component';
@@ -78,6 +91,7 @@ const INTERACTIVE = 'button, a, input, select, textarea, [role="menuitem"], [rol
   selector: 'wd-world-shell-page',
   imports: [
     DemoBadgeComponent,
+    EntitySheetComponent,
     ExplorerPanelComponent,
     IconButtonComponent,
     LeftToolbarComponent,
@@ -86,7 +100,7 @@ const INTERACTIVE = 'button, a, input, select, textarea, [role="menuitem"], [rol
     MapImportDirective,
     MapTitleComponent,
   ],
-  providers: [WorldStore, MapStore],
+  providers: [WorldStore, MapStore, EntityStore],
   template: `
     <main
       class="map-host"
@@ -149,15 +163,30 @@ const INTERACTIVE = 'button, a, input, select, textarea, [role="menuitem"], [rol
         (collapsedChange)="setBars({ leftCollapsed: $event })"
       />
       <wd-explorer-panel
+        #explorer
         [attr.data-entrance]="entrance"
         [width]="bars().rightWidth"
         [collapsed]="bars().rightCollapsed"
         (widthChange)="setBars({ rightWidth: $event })"
         (collapsedChange)="setBars({ rightCollapsed: $event })"
+        (openEntity)="openEntity($event)"
+        (create)="createEntity($event)"
+        (retry)="entities.load(worldId())"
       />
       @if (hint(); as text) {
         <p class="hint wd-panel" aria-live="polite">{{ text }}</p>
       }
+    }
+
+    @if (entities.openId(); as openId) {
+      <wd-entity-sheet
+        #sheet
+        [entityId]="openId"
+        [style.--sheet-width.px]="sheetWidth()"
+        (closed)="closeSheet()"
+        (trash)="trashEntity($event)"
+        (openEntity)="openEntity($event)"
+      />
     }
 
     <header class="top-bar" [attr.data-entrance]="entrance">
@@ -215,6 +244,14 @@ const INTERACTIVE = 'button, a, input, select, textarea, [role="menuitem"], [rol
             ></button>
           }
         }
+        <button
+          wd-icon-button
+          type="button"
+          icon="search"
+          tooltipPosition="below"
+          [label]="entityText.palette.open"
+          (click)="openPalette()"
+        ></button>
         @if (demoMode) {
           <wd-demo-badge inline [label]="demoStrings.badge" [detail]="demoStrings.badgeDetail" />
         }
@@ -374,9 +411,13 @@ export default class WorldShellPage {
   readonly worldId = input.required<string>();
   /** `?map=` da URL: mapa a abrir (docs/04 › Rotas). */
   readonly map = input<string>();
+  /** `?sel=` da URL: entidade com a ficha aberta. */
+  readonly sel = input<string>();
 
   protected readonly store = inject(WorldStore);
   protected readonly mapStore = inject(MapStore);
+  protected readonly entities = inject(EntityStore);
+  protected readonly entityText = ENTITY_STRINGS;
   protected readonly toasts = inject(ToastService);
   protected readonly text = WORLD_STRINGS;
   protected readonly mapText = MAP_STRINGS;
@@ -428,10 +469,16 @@ export default class WorldShellPage {
     }
   });
 
+  /** A ficha cobre o Explorar e tem pelo menos 440 px. */
+  protected readonly sheetWidth = computed(() => Math.max(this.bars().rightWidth, 440));
+
   protected readonly cameraFor = (mapId: Uuid) => readCamera(this.prefs.prefs(), mapId);
 
   private readonly title = viewChild.required<ElementRef<HTMLElement>>('title');
   private readonly canvas = viewChild<MapCanvasComponent>('canvas');
+  private readonly explorer = viewChild<ExplorerPanelComponent>('explorer');
+  private readonly sheet = viewChild<EntitySheetComponent>('sheet');
+  private paletteOpen = false;
   private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly document = inject(DOCUMENT);
@@ -466,6 +513,31 @@ export default class WorldShellPage {
     effect(() => {
       const map = this.store.activeMap();
       if (map) untracked(() => this.mapStore.syncMap(map));
+    });
+    // Ficha aberta: reflete o id na URL (`?sel=`).
+    effect(() => {
+      const id = this.entities.openId();
+      if (this.entities.status() === 'ready') untracked(() => this.replaceParam('sel', id));
+    });
+    // Gravação da ficha que falhou: conflito recarrega; outras falhas oferecem "Tentar de novo".
+    effect(() => {
+      const failure = this.entities.saveFailure();
+      if (!failure) return;
+      untracked(() => {
+        const text = this.entityText.sheet;
+        this.toasts.show(
+          failure.conflict
+            ? { message: text.conflict, kind: 'error' }
+            : {
+                message: text.saveFailed,
+                kind: 'error',
+                action: {
+                  label: text.retry,
+                  run: () => void this.entities.flush(failure.entityId),
+                },
+              },
+        );
+      });
     });
     // Envio que falhou: aviso com "Tentar de novo".
     effect(() => {
@@ -675,12 +747,152 @@ export default class WorldShellPage {
     }
   }
 
+  /** Abre a ficha (do Explorar, da paleta, de uma menção ou citação). */
+  protected openEntity(id: Uuid): void {
+    const entity = this.entities.byId().get(id);
+    if (!entity) return;
+    this.entities.open(id);
+    this.explorer()?.showKind(entity.kind);
+  }
+
+  protected closeSheet(): void {
+    const id = this.entities.openId();
+    this.entities.open(null);
+    // O foco volta para a linha da entidade no Explorar (ou para o título).
+    afterNextRender(
+      () => {
+        const row = id
+          ? this.document.querySelector<HTMLElement>(`wd-explorer-panel [data-id="${id}"]`)
+          : null;
+        (row ?? this.title().nativeElement).focus({ preventScroll: true });
+      },
+      { injector: this.injector },
+    );
+    if (id) void this.entities.flush(id);
+  }
+
+  /** Nova entidade: nome e tipo num diálogo; depois a ficha abre com o nome em foco. */
+  protected async createEntity(kind: EntityKind): Promise<void> {
+    const ref = this.dialogs.open<CreateEntityDialogComponent, EntityKind, CreateEntityResult>(
+      CreateEntityDialogComponent,
+      { data: kind, autoFocus: 'first-tabbable' },
+    );
+    const result = await firstValueFrom(ref.closed);
+    if (!result) return;
+    try {
+      const entity = await this.entities.create(result.kind, result.name);
+      this.openEntity(entity.id);
+      void this.announcer.announce(this.entityText.create.created(entity.name));
+      afterNextRender(() => this.sheet()?.focusName(), { injector: this.injector });
+    } catch {
+      this.toasts.show({ message: this.entityText.create.failed, kind: 'error' });
+    }
+  }
+
+  protected async trashEntity(id: Uuid): Promise<void> {
+    const text = this.entityText.sheet;
+    try {
+      const entity = await this.entities.trash(id);
+      this.title().nativeElement.focus({ preventScroll: true });
+      this.toasts.show({
+        message: text.trashed(entity.name),
+        kind: 'info',
+        action: {
+          label: text.undo,
+          run: () =>
+            void this.entities
+              .restore(id)
+              .then(() => this.openEntity(id))
+              .catch(() => this.toasts.show({ message: text.restoreFailed, kind: 'error' })),
+        },
+      });
+    } catch {
+      this.toasts.show({ message: text.trashFailed, kind: 'error' });
+    }
+  }
+
+  /** Busca e paleta de comandos (Ctrl/Cmd+K). */
+  protected async openPalette(): Promise<void> {
+    if (this.paletteOpen) return;
+    this.paletteOpen = true;
+    const ref = this.dialogs.open<CommandPaletteComponent, PaletteData, PaletteResult>(
+      CommandPaletteComponent,
+      {
+        data: { search: this.entities.search(), commands: this.paletteCommands() },
+        autoFocus: 'first-tabbable',
+      },
+    );
+    const result = await firstValueFrom(ref.closed);
+    this.paletteOpen = false;
+    if (result) this.runPaletteResult(result);
+  }
+
+  private paletteCommands(): PaletteCommand[] {
+    const text = this.entityText.palette;
+    const kinds: EntityKind[] = ['character', 'location', 'faction', 'item', 'note'];
+    return [
+      ...kinds.map((kind) => ({
+        id: `create:${kind}`,
+        label: ENTITY_KIND_STRINGS[kind].create,
+        icon: 'add',
+      })),
+      ...(this.store.activeMap()
+        ? [
+            { id: 'fit', label: text.commands.fit, icon: 'fit_screen' },
+            { id: 'explorer', label: text.commands.toggleExplorer, icon: 'right_panel_open' },
+          ]
+        : []),
+      { id: 'library', label: text.commands.library, icon: 'menu_book' },
+      ...this.store
+        .tree()
+        .filter((row) => row.map.id !== this.store.activeMapId())
+        .map((row) => ({
+          id: `map:${row.map.id}`,
+          label: text.openMap(row.map.name),
+          icon: 'map',
+          group: 'maps' as const,
+        })),
+    ];
+  }
+
+  private runPaletteResult(result: PaletteResult): void {
+    if (result.type === 'entity') {
+      this.openEntity(result.id);
+      return;
+    }
+    // Eventos ganham ficha e marcador no M3.
+    if (result.type === 'event') return;
+    const [command, arg] = result.id.split(':');
+    switch (command) {
+      case 'create':
+        void this.createEntity(arg as EntityKind);
+        break;
+      case 'fit':
+        this.fitMap();
+        break;
+      case 'explorer':
+        this.setBars({ rightCollapsed: !this.bars().rightCollapsed });
+        break;
+      case 'library':
+        this.backToLibrary();
+        break;
+      case 'map':
+        if (arg) this.openMap(arg);
+        break;
+    }
+  }
+
   /** `?map=` sem navegação do Router (que dispararia uma View Transition). */
   private syncUrl(mapId: Uuid): void {
+    this.replaceParam('map', mapId);
+  }
+
+  private replaceParam(name: string, value: string | null): void {
     const path = this.location.path().split('?')[0] ?? '';
     const params = new URLSearchParams(this.location.path().split('?')[1] ?? '');
-    if (params.get('map') === mapId) return;
-    params.set('map', mapId);
+    if (params.get(name) === value) return;
+    if (value === null) params.delete(name);
+    else params.set(name, value);
     this.location.replaceState(path, params.toString());
   }
 
@@ -721,16 +933,26 @@ export default class WorldShellPage {
         when: (event) => this.tool() === 'link' && notOnControl(event),
         down: () => this.canvas()?.commitTool(),
       },
+      { key: 'k', mod: true, inFields: true, down: () => void this.openPalette() },
+      {
+        key: 'escape',
+        when: () => this.entities.openId() !== null && !drawing(),
+        down: () => this.closeSheet(),
+      },
     ]);
     inject(DestroyRef).onDestroy(remove);
   }
 
   private async load(): Promise<void> {
+    const entitiesLoaded = this.entities.load(this.worldId());
     const status = await this.store.load(this.worldId(), this.map() ?? null);
     if (status !== 'ready') {
       this.leave(status === 'not_found' ? this.text.notFound : this.text.loadFailed);
       return;
     }
+    await entitiesLoaded;
+    const selected = this.sel();
+    if (selected) this.openEntity(selected);
     await this.transitions.viewTransition()?.finished.catch(() => undefined);
     // Fim da transição: foco no título e anúncio (docs/05 › Regras).
     const name = this.store.activeMap()?.name ?? this.store.world()?.name ?? '';
