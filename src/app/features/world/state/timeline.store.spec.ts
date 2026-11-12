@@ -66,7 +66,7 @@ describe('TimelineStore', () => {
 
   it('avança no play e para no fim (ou volta ao início com repetição)', () => {
     timeline.init(YEAR * 99, null);
-    timeline.setSpeed('year');
+    timeline.setSpeed({ amount: 1, unit: 'year' });
     timeline.advance(50);
     expect(timeline.currentTick()).toBe(YEAR * 99 + Math.round(1440 * 365.25 * 0.05));
     timeline.advance(100);

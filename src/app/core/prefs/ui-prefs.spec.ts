@@ -5,9 +5,12 @@ import {
   DEFAULT_BAR_PREFS,
   EXPLORER_WIDTH,
   MAX_SAVED_CAMERAS,
+  MAX_SAVED_SPEEDS,
   readBarPrefs,
   readCamera,
+  readSpeed,
   writeCamera,
+  writeSpeed,
 } from './ui-prefs';
 import { UI_PREFS_SAVE_DELAY_MS, UiPrefsStore } from './ui-prefs.store';
 
@@ -79,5 +82,24 @@ describe('UiPrefsStore', () => {
     expect(profiles.patches).toEqual([
       { bars: { leftCollapsed: false }, cameras: { m: { x: 1, y: 2, zoom: 1 } } },
     ]);
+  });
+});
+
+describe('velocidade do play por mundo', () => {
+  it('lê e grava a velocidade, tolerante a valores ruins', () => {
+    const prefs = { timelineSpeeds: writeSpeed({}, 'w1', { amount: 100, unit: 'year' }) };
+    expect(readSpeed(prefs, 'w1')).toEqual({ amount: 100, unit: 'year' });
+    expect(readSpeed(prefs, 'w2')).toBeNull();
+    expect(readSpeed({ timelineSpeeds: { w1: { amount: -1, unit: 'year' } } }, 'w1')).toBeNull();
+    expect(readSpeed({ timelineSpeeds: { w1: { amount: 1, unit: 'week' } } }, 'w1')).toBeNull();
+  });
+
+  it('guarda só os mundos mais recentes', () => {
+    let speeds = {};
+    for (let i = 0; i < MAX_SAVED_SPEEDS + 5; i++) {
+      speeds = writeSpeed({ timelineSpeeds: speeds }, `w${i}`, { amount: 1, unit: 'day' });
+    }
+    expect(Object.keys(speeds)).toHaveLength(MAX_SAVED_SPEEDS);
+    expect(readSpeed({ timelineSpeeds: speeds }, 'w0')).toBeNull();
   });
 });

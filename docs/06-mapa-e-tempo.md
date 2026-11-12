@@ -202,8 +202,9 @@ Toda anotação tem `tick_start`/`tick_end` opcionais (nulos = sempre visível).
 - Acessibilidade: alternativa por teclado — selecionar item, `Enter` → "Colocar no mapa" → posiciona no centro da viewport; setas movem; `Enter` confirma.
 
 ## 7. Linha do tempo (barra inferior)
-- `TimelineStore`: `currentTick`, `view` (faixa visível), largura do trilho, `isPlaying`, `speed` (predefinições: 1 dia/s, 1 mês/s, 1 ano/s, 10 anos/s), `loop`; derivados: precisão do cursor, data formatada e janela dos eventos. A matemática (escala, régua alinhada aos anos da era, zoom, passos) fica em `domain/timeline/timeline-scale.ts`.
+- `TimelineStore`: `currentTick`, `view` (faixa visível), largura do trilho, `isPlaying`, `speed` (`{ amount, unit }`: dias, meses ou anos do mundo por segundo real), `loop`; derivados: precisão do cursor, data formatada e janela dos eventos. A matemática (escala, régua alinhada aos anos da era, zoom, passos) fica em `domain/timeline/timeline-scale.ts`.
 - **Play** usa `requestAnimationFrame`; atualiza `currentTick` por delta de tempo real × velocidade.
+- **Velocidade**: clicar nela abre o diálogo "Velocidade do play", com atalhos (1 dia/s, 1 mês/s, 1 ano/s, 10, 100 e 1.000 anos/s), uma velocidade livre (até 1.000.000 de unidades por segundo) e quanto o play leva para percorrer o mundo inteiro. Fica salva por mundo em `profiles.ui_prefs.timelineSpeeds` (os 60 mundos mais recentes); sem ela, o mundo começa no atalho que percorre a faixa em cerca de um minuto.
 - Arrastar o cursor atualiza `currentTick` a cada `pointermove` (sem debounce — a avaliação é barata).
 - O valor de `t` é refletido na URL (`?t=`) com debounce de 300 ms (`replaceUrl`).
 - Zoom na timeline: roda do mouse sobre o trilho (centralizado no ponteiro); pan: arrastar o fundo do trilho; clicar no fundo move o cursor (arredondado à precisão do zoom).

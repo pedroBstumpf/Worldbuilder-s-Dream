@@ -15,7 +15,6 @@ import type { Tick, Uuid } from '@domain/models';
 import {
   eraMarks,
   isEventActive,
-  PLAY_SPEEDS,
   rulerMarks,
   snapTick,
   tickToX,
@@ -83,10 +82,11 @@ type Gesture =
         <button
           type="button"
           class="speed wd-focus"
-          [attr.aria-label]="text.speed(text.speeds[store.speed()])"
-          (click)="cycleSpeed()"
+          aria-haspopup="dialog"
+          [attr.aria-label]="text.speed(speedText())"
+          (click)="openSpeed.emit()"
         >
-          {{ text.speeds[store.speed()] }}
+          {{ speedText() }}
         </button>
         <button
           wd-icon-button
@@ -260,6 +260,7 @@ type Gesture =
 
     .speed {
       min-inline-size: 72px;
+      white-space: nowrap;
       padding: 4px 8px;
       font-family: var(--font-mono);
       font-size: 0.75rem;
@@ -425,6 +426,8 @@ export class TimelineBarComponent {
   readonly hover = output<TimelineEventHover | null>();
   readonly createEvent = output();
   readonly openCalendar = output();
+  /** Clique na velocidade: abre a configuração do play. */
+  readonly openSpeed = output();
 
   protected readonly store = inject(TimelineStore);
   protected readonly text = TIME_STRINGS.timeline;
@@ -441,6 +444,7 @@ export class TimelineBarComponent {
   private readonly area = viewChild.required<ElementRef<HTMLElement>>('area');
 
   protected readonly x = (tick: Tick) => tickToX(tick, this.store.view(), this.width());
+  protected readonly speedText = computed(() => this.text.formatSpeed(this.store.speed()));
   protected readonly cursorX = computed(() => this.x(this.store.currentTick()));
   protected readonly cursorInView = computed(
     () => this.cursorX() >= 0 && this.cursorX() <= this.width(),
@@ -544,11 +548,6 @@ export class TimelineBarComponent {
 
   protected diamond(y: number, r: number, x = 0): string {
     return `M${x} ${y - r}L${x + r} ${y}L${x} ${y + r}L${x - r} ${y}Z`;
-  }
-
-  protected cycleSpeed(): void {
-    const index = PLAY_SPEEDS.indexOf(this.store.speed());
-    this.store.setSpeed(PLAY_SPEEDS[(index + 1) % PLAY_SPEEDS.length] ?? 'year');
   }
 
   protected onWheel(event: WheelEvent): void {

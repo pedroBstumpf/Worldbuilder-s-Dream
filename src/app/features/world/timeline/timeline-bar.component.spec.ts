@@ -85,15 +85,17 @@ describe('TimelineBarComponent', () => {
     expect(TestBed.inject(TimelineStore).isPlaying()).toBe(false);
   });
 
-  it('troca a velocidade em ciclo', async () => {
+  it('mostra a velocidade e pede a configuração ao clicar', async () => {
     const { fixture } = await render();
+    let opened = 0;
+    fixture.componentInstance.openSpeed.subscribe(() => opened++);
     const speed = fixture.nativeElement.querySelector('.speed') as HTMLButtonElement;
     expect(speed.textContent?.trim()).toBe('1 ano/s');
     speed.click();
+    expect(opened).toBe(1);
+    TestBed.inject(TimelineStore).setSpeed({ amount: 1000, unit: 'year' });
     await fixture.whenStable();
-    expect(speed.textContent?.trim()).toBe('10 anos/s');
-    speed.click();
-    await fixture.whenStable();
-    expect(speed.textContent?.trim()).toBe('1 dia/s');
+    expect(speed.textContent?.trim()).toBe('1.000 anos/s');
+    expect(speed.getAttribute('aria-label')).toContain('Clique para configurar');
   });
 });

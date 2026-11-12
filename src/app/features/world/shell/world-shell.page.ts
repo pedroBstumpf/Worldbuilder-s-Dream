@@ -19,7 +19,14 @@ import { Router } from '@angular/router';
 import { DEMO_MODE } from '@core/data-source/demo-mode';
 import { BookMotionService } from '@core/motion/book-motion.service';
 import { BookTransitions } from '@core/motion/book-transitions.service';
-import { readCamera, writeBarPrefs, writeCamera, type BarPrefs } from '@core/prefs/ui-prefs';
+import {
+  readCamera,
+  readSpeed,
+  writeBarPrefs,
+  writeCamera,
+  writeSpeed,
+  type BarPrefs,
+} from '@core/prefs/ui-prefs';
 import { UiPrefsStore } from '@core/prefs/ui-prefs.store';
 import { ShortcutService } from '@core/shortcuts/shortcut.service';
 import { DEMO_STRINGS } from '@core/strings/demo.strings';
@@ -32,7 +39,7 @@ import { mapNameFromFile } from '@domain/maps';
 import { eventColor } from '@domain/events';
 import { isTick, type EntityKind, type PolygonVertex, type Uuid } from '@domain/models';
 import { MapImageError, readMapImage, type ProcessedMapImage } from '@engine/import/read-map-image';
-import { isEventActive } from '@domain/timeline';
+import { isEventActive, suggestSpeed, type PlaySpeed } from '@domain/timeline';
 import type { EventMarkerInput, LayerId, ToolId, ViewportInsets } from '@engine/map-engine';
 import { DemoBadgeComponent } from '@shared/ui/demo-badge/demo-badge.component';
 import { DialogService } from '@shared/ui/dialog/dialog.service';
@@ -84,6 +91,7 @@ import type {
   CalendarDialogData,
   CalendarDialogResult,
 } from '../timeline/calendar-dialog.component';
+import { SpeedDialogComponent, type SpeedDialogData } from '../timeline/speed-dialog.component';
 import { TimelineBarComponent, type TimelineEventMark } from '../timeline/timeline-bar.component';
 import { ExplorerPanelComponent } from './explorer-panel.component';
 import { LeftToolbarComponent, type ToggleableLayer } from './left-toolbar.component';
@@ -227,6 +235,7 @@ const ARROW_KEYS_OWNERS =
         (hover)="onEventHover($event ? { eventId: $event.id, anchor: $event } : null)"
         (createEvent)="createEvent()"
         (openCalendar)="openCalendar()"
+        (openSpeed)="openSpeed()"
       />
     }
 
@@ -655,6 +664,16 @@ export default class WorldShellPage {
       const map = this.store.activeMap();
       if (map) untracked(() => this.mapStore.syncMap(map));
     });
+    // Velocidade do play: a salva para este mundo ou a que percorre o mundo em ~1 minuto.
+    let speedApplied = false;
+    effect(() => {
+      if (speedApplied || !this.prefs.loaded() || this.store.status() !== 'ready') return;
+      speedApplied = true;
+      untracked(() => {
+        const saved = readSpeed(this.prefs.prefs(), this.worldId());
+        this.timeline.setSpeed(saved ?? suggestSpeed(this.store.calendar(), this.store.range()));
+      });
+    });
     // Avisos sobem acima da linha do tempo enquanto ela existe.
     effect(() => {
       const root = this.document.documentElement.style;
@@ -926,6 +945,25 @@ export default class WorldShellPage {
     } catch {
       this.toasts.show({ message: this.mapText.rename.failed, kind: 'error' });
     }
+  }
+
+  /** Velocidade do play (clique na velocidade da linha do tempo); fica salva para o mundo. */
+  protected async openSpeed(): Promise<void> {
+    const ref = this.dialogs.open<SpeedDialogComponent, SpeedDialogData, PlaySpeed>(
+      SpeedDialogComponent,
+      {
+        data: {
+          speed: this.timeline.speed(),
+          calendar: this.store.calendar(),
+          range: this.store.range(),
+        },
+        autoFocus: 'first-tabbable',
+      },
+    );
+    const speed = await firstValueFrom(ref.closed);
+    if (!speed) return;
+    this.timeline.setSpeed(speed);
+    this.prefs.set('timelineSpeeds', writeSpeed(this.prefs.prefs(), this.worldId(), speed));
   }
 
   /** Calendário do mundo, faixa e "agora da narrativa" (botão da linha do tempo). */

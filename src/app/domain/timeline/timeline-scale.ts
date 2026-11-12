@@ -174,12 +174,65 @@ export function snapTick(calendar: Calendar, tick: Tick, unit: CalendarUnit): Ti
   return calendar.startOf(unit, tick);
 }
 
-/** Velocidades do play (docs/06 §7): unidades do mundo por segundo real. */
-export type PlaySpeed = 'day' | 'month' | 'year' | 'decade';
-export const PLAY_SPEEDS: readonly PlaySpeed[] = ['day', 'month', 'year', 'decade'];
+/** Unidade da velocidade do play. */
+export type SpeedUnit = 'day' | 'month' | 'year';
+export const SPEED_UNITS: readonly SpeedUnit[] = ['day', 'month', 'year'];
+
+/** Velocidade do play (docs/06 §7): `amount` unidades do mundo por segundo real. */
+export interface PlaySpeed {
+  readonly amount: number;
+  readonly unit: SpeedUnit;
+}
+
+/** Limites da quantidade (positiva; o teto mantém os ticks por segundo em inteiros seguros). */
+export const SPEED_AMOUNT = { min: 0.001, max: 1_000_000 } as const;
+
+/** Atalhos do diálogo de velocidade. */
+export const SPEED_PRESETS: readonly PlaySpeed[] = [
+  { amount: 1, unit: 'day' },
+  { amount: 1, unit: 'month' },
+  { amount: 1, unit: 'year' },
+  { amount: 10, unit: 'year' },
+  { amount: 100, unit: 'year' },
+  { amount: 1000, unit: 'year' },
+];
 
 export function ticksPerSecond(calendar: Calendar, speed: PlaySpeed): number {
-  return speed === 'decade' ? unitLength(calendar, 'year') * 10 : unitLength(calendar, speed);
+  return unitLength(calendar, speed.unit) * speed.amount;
+}
+
+export function isValidSpeed(speed: { amount: unknown; unit: unknown }): speed is PlaySpeed {
+  return (
+    typeof speed.amount === 'number' &&
+    Number.isFinite(speed.amount) &&
+    speed.amount >= SPEED_AMOUNT.min &&
+    speed.amount <= SPEED_AMOUNT.max &&
+    SPEED_UNITS.includes(speed.unit as SpeedUnit)
+  );
+}
+
+export function sameSpeed(a: PlaySpeed, b: PlaySpeed): boolean {
+  return a.amount === b.amount && a.unit === b.unit;
+}
+
+/** Segundos reais para o play percorrer a faixa do mundo inteira. */
+export function playDuration(calendar: Calendar, range: TimeRange, speed: PlaySpeed): number {
+  return (range.end - range.start) / ticksPerSecond(calendar, speed);
+}
+
+/** Atalho que percorre a faixa do mundo em cerca de `seconds` (padrão de um mundo novo). */
+export function suggestSpeed(calendar: Calendar, range: TimeRange, seconds = 60): PlaySpeed {
+  const target = Math.log((range.end - range.start) / seconds);
+  let best = SPEED_PRESETS[2] ?? { amount: 1, unit: 'year' };
+  let distance = Infinity;
+  for (const preset of SPEED_PRESETS) {
+    const d = Math.abs(Math.log(ticksPerSecond(calendar, preset)) - target);
+    if (d < distance) {
+      best = preset;
+      distance = d;
+    }
+  }
+  return best;
 }
 
 /** Espaço mínimo entre marcas da régua, em px (cabe o rótulo). */
