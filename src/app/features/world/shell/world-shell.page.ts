@@ -36,6 +36,7 @@ import { TIME_STRINGS } from '@core/strings/time.strings';
 import { WORLD_STRINGS } from '@core/strings/world.strings';
 import type { Point } from '@domain/geometry';
 import {
+  aspectMismatch,
   DEFAULT_BRUSH,
   mapNameFromFile,
   toMapUnits,
@@ -63,7 +64,17 @@ import { firstValueFrom } from 'rxjs';
 import {
   ImportChoiceDialogComponent,
   type ImportChoice,
+  type ImportChoiceData,
 } from '../import/import-choice-dialog.component';
+import {
+  ImageVersionDialogComponent,
+  type ImageVersionDialogData,
+  type ImageVersionDialogResult,
+} from '../map/image-version-dialog.component';
+import {
+  ImageVersionsDialogComponent,
+  type ImageVersionsAction,
+} from '../map/image-versions-dialog.component';
 import {
   CreateEntityDialogComponent,
   type CreateEntityResult,
@@ -113,7 +124,11 @@ import type {
   CalendarDialogResult,
 } from '../timeline/calendar-dialog.component';
 import { SpeedDialogComponent, type SpeedDialogData } from '../timeline/speed-dialog.component';
-import { TimelineBarComponent, type TimelineEventMark } from '../timeline/timeline-bar.component';
+import {
+  TimelineBarComponent,
+  type TimelineEventMark,
+  type TimelineImageVersion,
+} from '../timeline/timeline-bar.component';
 import { ExplorerPanelComponent } from './explorer-panel.component';
 import { LeftToolbarComponent, type ToggleableLayer } from './left-toolbar.component';
 import { ToolOptionsComponent } from './tool-options.component';
@@ -198,6 +213,8 @@ const ARROW_KEYS_OWNERS =
           [savedCamera]="cameraFor"
           [mapNames]="mapNames()"
           [time]="timeline.currentTick()"
+          [instantTime]="timeline.fastPlay()"
+          [imageVersions]="mapStore.imageVersionInputs()"
           [events]="eventMarks()"
           [eventWindow]="timeline.eventWindow()"
           [looks]="tokenLooks()"
@@ -302,6 +319,7 @@ const ARROW_KEYS_OWNERS =
         [events]="eventMarks()"
         [nowTick]="store.world()?.nowTick ?? null"
         [keyframeTicks]="keyframeTicks()"
+        [imageVersions]="versionMarks()"
         (eventClick)="goToEvent($event)"
         (hover)="onEventHover($event ? { eventId: $event.id, anchor: $event } : null)"
         (createEvent)="createEvent()"
@@ -784,6 +802,12 @@ export default class WorldShellPage {
     const token = selected ?? (openId ? this.mapStore.tokenOfEntity(openId) : null);
     return token ? this.mapStore.keyframesOf(token.id).map((k) => k.tick) : [];
   });
+  /** Inícios das versões da imagem do mapa aberto, para o trilho. */
+  protected readonly versionMarks = computed<TimelineImageVersion[]>(() =>
+    this.mapStore
+      .imageVersionInputs()
+      .map((version) => ({ id: version.id, tick: version.tickStart, url: version.url })),
+  );
   protected readonly trailTokens = computed(() => [
     ...new Set([...this.mapStore.selection(), ...this.pathTokens()]),
   ]);
@@ -1076,12 +1100,17 @@ export default class WorldShellPage {
     const current = this.store.activeMap();
     let choice: ImportChoice | 'root' = 'root';
     if (current) {
-      const ref = this.dialogs.open<ImportChoiceDialogComponent, string, ImportChoice>(
+      const date = this.timeline.calendar().format(this.timeline.currentTick());
+      const ref = this.dialogs.open<ImportChoiceDialogComponent, ImportChoiceData, ImportChoice>(
         ImportChoiceDialogComponent,
-        { data: current.name },
+        { data: { current: current.name, date } },
       );
       const picked = await firstValueFrom(ref.closed);
       if (!picked) return;
+      if (picked === 'version') {
+        await this.importImageVersion(file, null);
+        return;
+      }
       choice = picked;
     }
     this.busy.set(true);
@@ -1129,6 +1158,124 @@ export default class WorldShellPage {
       case 'import':
         void pickImageFile(this.document).then((file) => file && this.importFile(file));
         break;
+      case 'versions':
+        void this.openImageVersions();
+        break;
+    }
+  }
+
+  /** Painel "Versões da imagem" (seletor no título). */
+  protected async openImageVersions(): Promise<void> {
+    const ref = this.dialogs.open<ImageVersionsDialogComponent, unknown, ImageVersionsAction>(
+      ImageVersionsDialogComponent,
+      { injector: this.injector },
+    );
+    const result = await firstValueFrom(ref.closed);
+    if (!result) return;
+    const file = await pickImageFile(this.document);
+    if (!file) return;
+    const map = this.store.activeMap();
+    switch (result.action) {
+      case 'add':
+        await this.importImageVersion(file, null);
+        break;
+      case 'replace':
+        await this.importImageVersion(file, result.versionId);
+        break;
+      case 'replace-base':
+        if (!map || this.busy()) return;
+        await this.replaceBaseImage(map.id, file);
+        break;
+    }
+  }
+
+  /** Substitui a imagem inicial do mapa (reescalona links, posições e a escala). */
+  private async replaceBaseImage(mapId: Uuid, file: File): Promise<void> {
+    this.busy.set(true);
+    try {
+      const processed = await readMapImage(file);
+      try {
+        const updated = await this.store.replaceImage(mapId, processed);
+        await this.mapStore.load(updated, this.store.takeLocalImage(updated.id));
+        this.notifyImported(this.mapText.import.replaced, processed.reduced, false);
+      } catch {
+        processed.bitmap.close();
+        this.toasts.show({ message: this.mapText.import.errors.save_failed, kind: 'error' });
+      }
+    } catch (error) {
+      const reason = error instanceof MapImageError ? error.reason : 'decode_failed';
+      this.toasts.show({ message: this.mapText.import.errors[reason], kind: 'error' });
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /**
+   * Nova versão da imagem a partir de uma data (`versionId` nulo) ou nova imagem de uma
+   * versão (docs/06 › Versões da imagem no tempo). Pergunta a data e, se a proporção não
+   * confere com a do mapa, se corta ou enquadra com margens.
+   */
+  private async importImageVersion(file: File, versionId: Uuid | null): Promise<void> {
+    const map = this.store.activeMap();
+    if (!map || this.busy()) return;
+    const text = this.mapText.versions;
+    this.busy.set(true);
+    let processed: ProcessedMapImage;
+    try {
+      processed = await readMapImage(file);
+    } catch (error) {
+      this.busy.set(false);
+      const reason = error instanceof MapImageError ? error.reason : 'decode_failed';
+      this.toasts.show({ message: this.mapText.import.errors[reason], kind: 'error' });
+      return;
+    }
+    this.busy.set(false);
+    const mismatch = aspectMismatch(processed, map);
+    let tickStart = this.timeline.currentTick();
+    let fit: ImageVersionDialogResult['fit'] = null;
+    if (versionId === null || mismatch) {
+      const versions = this.mapStore.scene()?.imageVersions ?? [];
+      const ref = this.dialogs.open<
+        ImageVersionDialogComponent,
+        ImageVersionDialogData,
+        ImageVersionDialogResult
+      >(ImageVersionDialogComponent, {
+        data: {
+          mode: versionId === null ? 'create' : 'replace',
+          calendar: this.timeline.calendar(),
+          tick: tickStart,
+          takenTicks: versions.map((v) => v.tickStart),
+          mismatch,
+        },
+        autoFocus: 'first-tabbable',
+      });
+      const result = await firstValueFrom(ref.closed);
+      if (!result) {
+        processed.bitmap.close();
+        return;
+      }
+      tickStart = result.tickStart;
+      fit = result.fit;
+    }
+    this.busy.set(true);
+    try {
+      if (fit) {
+        processed.bitmap.close();
+        processed = await readMapImage(file, { width: map.width, height: map.height, mode: fit });
+      }
+      if (versionId) {
+        await this.mapStore.replaceImageVersion(versionId, processed);
+        this.toasts.show({ message: text.replaced, kind: 'success' });
+      } else {
+        await this.mapStore.addImageVersion(processed, tickStart);
+        this.timeline.seek(tickStart);
+        const date = this.timeline.calendar().format(tickStart);
+        this.toasts.show({ message: text.created(date), kind: 'success' });
+      }
+    } catch {
+      this.toasts.show({ message: text.failed, kind: 'error' });
+    } finally {
+      this.busy.set(false);
     }
   }
 
