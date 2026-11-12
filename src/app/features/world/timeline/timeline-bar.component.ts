@@ -143,6 +143,15 @@ type Gesture =
               <line [attr.y1]="trackY - 14" [attr.y2]="trackY + 14" />
             </g>
           }
+          @for (x of keyframeXs(); track $index) {
+            <line
+              class="keyframe"
+              [attr.x1]="x"
+              [attr.x2]="x"
+              [attr.y1]="trackY + 5"
+              [attr.y2]="trackY + 12"
+            />
+          }
           @for (era of eras(); track era.tick) {
             <g class="era" [attr.transform]="translate(era.tick)">
               <path [attr.d]="diamond(trackY, 6)" />
@@ -327,6 +336,13 @@ type Gesture =
       stroke: var(--wd-accent);
     }
 
+    /* Posições (keyframes) da entidade selecionada (docs/06 §7). */
+    .keyframe {
+      stroke: var(--ouro-300);
+      stroke-width: 2;
+      stroke-linecap: round;
+    }
+
     .now line {
       stroke: var(--pergaminho-100);
       stroke-dasharray: 2 3;
@@ -421,6 +437,8 @@ export class TimelineBarComponent {
   readonly events = input<readonly TimelineEventMark[]>([]);
   /** "Agora da narrativa" (marcador opcional). */
   readonly nowTick = input<Tick | null>(null);
+  /** Instantes das posições da entidade selecionada (pequenos traços sob o trilho). */
+  readonly keyframeTicks = input<readonly Tick[]>([]);
 
   readonly eventClick = output<Uuid>();
   readonly hover = output<TimelineEventHover | null>();
@@ -454,6 +472,11 @@ export class TimelineBarComponent {
     start: Math.max(-8, this.x(this.store.range().start)),
     end: Math.min(this.width() + 8, this.x(this.store.range().end)),
   }));
+  protected readonly keyframeXs = computed(() =>
+    this.keyframeTicks()
+      .map((tick) => this.x(tick))
+      .filter((x) => x >= 0 && x <= this.width()),
+  );
   protected readonly nowX = computed(() => {
     const now = this.nowTick();
     if (now === null) return null;

@@ -262,6 +262,7 @@ const ARROW_KEYS_OWNERS =
         [attr.data-entrance]="entrance"
         [events]="eventMarks()"
         [nowTick]="store.world()?.nowTick ?? null"
+        [keyframeTicks]="keyframeTicks()"
         (eventClick)="goToEvent($event)"
         (hover)="onEventHover($event ? { eventId: $event.id, anchor: $event } : null)"
         (createEvent)="createEvent()"
@@ -680,6 +681,16 @@ export default class WorldShellPage {
   private readonly canvas = viewChild<MapCanvasComponent>('canvas');
   /** Tokens com o caminho (rastro) à mostra pelo menu, além dos selecionados. */
   protected readonly pathTokens = signal<readonly Uuid[]>([]);
+  /**
+   * Instantes das posições da entidade em foco (token selecionado ou ficha aberta), para
+   * os traços da linha do tempo.
+   */
+  protected readonly keyframeTicks = computed(() => {
+    const selected = this.mapStore.selectedTokens().find((token) => token.entityId !== null);
+    const openId = this.entities.openId();
+    const token = selected ?? (openId ? this.mapStore.tokenOfEntity(openId) : null);
+    return token ? this.mapStore.keyframesOf(token.id).map((k) => k.tick) : [];
+  });
   protected readonly trailTokens = computed(() => [
     ...new Set([...this.mapStore.selection(), ...this.pathTokens()]),
   ]);
