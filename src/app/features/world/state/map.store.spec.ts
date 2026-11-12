@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { setUpLocalTestBed } from '@data/local/testing/local-test-bed';
 import { DEFAULT_CALENDAR } from '@domain/calendar/default-calendar';
 import type { WorldMap } from '@domain/models';
-import { EventRepository, MapRepository, WorldRepository } from '@domain/ports';
+import { EntityRepository, EventRepository, MapRepository, WorldRepository } from '@domain/ports';
 import { HistoryStore } from './history.store';
 import { MapStore } from './map.store';
 
@@ -118,6 +118,153 @@ describe('MapStore (eventos no mapa)', () => {
     const history = TestBed.inject(HistoryStore);
     await store.placeEvent(eventId, { x: 1, y: 2 }, 500);
     await store.load(map, null);
+    expect(history.canUndo()).toBe(false);
+  });
+});
+
+describe('MapStore (tokens de entidade)', () => {
+  let teardown: () => Promise<void>;
+  let store: InstanceType<typeof MapStore>;
+  let history: InstanceType<typeof HistoryStore>;
+  let repo: MapRepository;
+  let map: WorldMap;
+  let entityId: string;
+
+  const saved = async () => (await repo.getScene(map.id)) ?? { tokens: [], keyframes: [] };
+  const positions = () =>
+    store.keyframesOf(store.tokenOfEntity(entityId)?.id ?? '').map((k) => [k.tick, k.x, k.y]);
+
+  beforeEach(async () => {
+    ({ teardown } = await setUpLocalTestBed([MapStore, HistoryStore]));
+    const world = await TestBed.inject(WorldRepository).create(
+      { id: crypto.randomUUID(), name: 'Eldoria' },
+      DEFAULT_CALENDAR,
+    );
+    repo = TestBed.inject(MapRepository);
+    map = await repo.create({
+      id: crypto.randomUUID(),
+      worldId: world.id,
+      name: 'Continente',
+      width: 1000,
+      height: 800,
+    });
+    const entity = await TestBed.inject(EntityRepository).create({
+      id: crypto.randomUUID(),
+      worldId: world.id,
+      kind: 'character',
+      name: 'Aria',
+    });
+    entityId = entity.id;
+    store = TestBed.inject(MapStore);
+    history = TestBed.inject(HistoryStore);
+    await store.load(map, null);
+  });
+
+  afterEach(() => teardown());
+
+  it('coloca a entidade no mapa com um keyframe no instante', async () => {
+    await store.placeEntity(entityId, { x: 10, y: 20 }, 100);
+    expect(store.tokenOfEntity(entityId)).toEqual(expect.objectContaining({ mapId: map.id }));
+    expect(positions()).toEqual([[100, 10, 20]]);
+    const scene = await saved();
+    expect(scene.tokens).toHaveLength(1);
+    expect(scene.keyframes).toEqual([expect.objectContaining({ tick: 100, x: 10, y: 20 })]);
+  });
+
+  it('soltar de novo cria outro keyframe no mesmo token', async () => {
+    await store.placeEntity(entityId, { x: 10, y: 20 }, 100);
+    await store.placeEntity(entityId, { x: 50, y: 60 }, 200);
+    expect(store.scene()?.tokens).toHaveLength(1);
+    expect(positions()).toEqual([
+      [100, 10, 20],
+      [200, 50, 60],
+    ]);
+  });
+
+  it('mover no mesmo instante atualiza o keyframe; em outro, cria', async () => {
+    await store.placeEntity(entityId, { x: 0, y: 0 }, 100);
+    const tokenId = store.tokenOfEntity(entityId)?.id ?? '';
+    await store.moveToken(tokenId, { x: 5, y: 5 }, 100);
+    await store.moveToken(tokenId, { x: 9, y: 9 }, 300);
+    expect(positions()).toEqual([
+      [100, 5, 5],
+      [300, 9, 9],
+    ]);
+    expect((await saved()).keyframes).toHaveLength(2);
+  });
+
+  it('com Alt, corrige o keyframe em vigor', async () => {
+    await store.placeEntity(entityId, { x: 0, y: 0 }, 100);
+    const tokenId = store.tokenOfEntity(entityId)?.id ?? '';
+    await store.moveToken(tokenId, { x: 7, y: 7 }, 250, { correctPrevious: true });
+    expect(positions()).toEqual([[100, 7, 7]]);
+  });
+
+  it('sai do mapa no instante, na posição em que estava', async () => {
+    await store.placeEntity(entityId, { x: 0, y: 0 }, 100);
+    const tokenId = store.tokenOfEntity(entityId)?.id ?? '';
+    await store.moveToken(tokenId, { x: 100, y: 0 }, 200);
+    await store.hideToken(tokenId, 150);
+    const hidden = store.keyframesOf(tokenId).find((k) => k.tick === 150);
+    expect(hidden).toEqual(expect.objectContaining({ x: 50, y: 0, visible: false }));
+    // Já oculto: nada muda.
+    await store.hideToken(tokenId, 160);
+    expect(store.keyframesOf(tokenId)).toHaveLength(3);
+  });
+
+  it('muda a interpolação e move um ponto do rastro', async () => {
+    await store.placeEntity(entityId, { x: 0, y: 0 }, 100);
+    const [keyframe] = store.keyframesOf(store.tokenOfEntity(entityId)?.id ?? '');
+    await store.setInterpolation(keyframe?.id ?? '', 'ease');
+    await store.moveKeyframe(keyframe?.id ?? '', { x: 3, y: 4 });
+    expect((await saved()).keyframes).toEqual([
+      expect.objectContaining({ interpolation: 'ease', x: 3, y: 4, tick: 100 }),
+    ]);
+  });
+
+  it('remover o último keyframe tira o token do mapa', async () => {
+    await store.placeEntity(entityId, { x: 0, y: 0 }, 100);
+    await store.placeEntity(entityId, { x: 1, y: 1 }, 200);
+    const [first, second] = store.keyframesOf(store.tokenOfEntity(entityId)?.id ?? '');
+    await store.removeKeyframe(first?.id ?? '');
+    expect(store.tokenOfEntity(entityId)).not.toBeNull();
+    await store.removeKeyframe(second?.id ?? '');
+    expect(store.tokenOfEntity(entityId)).toBeNull();
+    expect((await saved()).tokens).toEqual([]);
+  });
+
+  it('desfaz a remoção do token, com os keyframes', async () => {
+    await store.placeEntity(entityId, { x: 0, y: 0 }, 100);
+    await store.placeEntity(entityId, { x: 1, y: 1 }, 200);
+    await store.removeToken(store.tokenOfEntity(entityId)?.id ?? '');
+    expect(store.tokenOfEntity(entityId)).toBeNull();
+
+    expect(await history.undo()).toBe('removeToken');
+    expect(positions()).toEqual([
+      [100, 0, 0],
+      [200, 1, 1],
+    ]);
+    expect((await saved()).keyframes).toHaveLength(2);
+  });
+
+  it('desfaz o movimento e a colocação, na ordem', async () => {
+    await store.placeEntity(entityId, { x: 0, y: 0 }, 100);
+    await store.moveToken(store.tokenOfEntity(entityId)?.id ?? '', { x: 8, y: 8 }, 100);
+    await history.undo();
+    expect(positions()).toEqual([[100, 0, 0]]);
+    await history.undo();
+    expect(store.tokenOfEntity(entityId)).toBeNull();
+    expect((await saved()).tokens).toEqual([]);
+    await history.redo();
+    await history.redo();
+    expect(positions()).toEqual([[100, 8, 8]]);
+  });
+
+  it('volta ao que está gravado se a gravação falhar', async () => {
+    vi.spyOn(repo, 'saveKeyframe').mockRejectedValueOnce(new Error('offline'));
+    await expect(store.placeEntity(entityId, { x: 1, y: 1 }, 100)).rejects.toThrow('offline');
+    expect(store.tokenOfEntity(entityId)).toBeNull();
+    expect((await saved()).tokens).toEqual([]);
     expect(history.canUndo()).toBe(false);
   });
 });
