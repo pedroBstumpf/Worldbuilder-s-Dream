@@ -7,7 +7,15 @@ import {
   isEmptySceneChange,
   type SceneChange,
 } from '@domain/maps';
+import {
+  evaluateKeyframes,
+  type KeyframeFields,
+  planKeyframeHide,
+  planKeyframeMove,
+  sortKeyframes,
+} from '@domain/timeline';
 import type {
+  InterpolationMode,
   MapLink,
   MapToken,
   PolygonVertex,
@@ -236,7 +244,135 @@ export const MapStore = signalStore(
             return token ? { removeTokens: [token.id] } : null;
           });
         },
+
+        /** Token da entidade neste mapa (no máximo um por mapa). */
+        tokenOfEntity(entityId: Uuid): MapToken | null {
+          return store.scene()?.tokens.find((t) => t.entityId === entityId) ?? null;
+        },
+
+        /** Keyframes do token, em ordem crescente de tick. */
+        keyframesOf(tokenId: Uuid): TokenKeyframe[] {
+          return keyframesOf(store.scene(), tokenId);
+        },
+
+        /**
+         * Põe a entidade no mapa no instante (docs/06 §3): cria o token, se ainda não
+         * houver neste mapa, e grava a posição como keyframe.
+         */
+        placeEntity(entityId: Uuid, point: Point, tick: Tick): Promise<void> {
+          return edit('placeToken', (scene) => {
+            const existing = scene.tokens.find((t) => t.entityId === entityId);
+            const token: MapToken = existing ?? {
+              id: crypto.randomUUID(),
+              worldId: scene.map.worldId,
+              mapId: scene.map.id,
+              entityId,
+              eventId: null,
+              size: 1,
+              style: {},
+              createdAt: new Date().toISOString(),
+            };
+            const fields = planKeyframeMove(
+              keyframesOf(scene, token.id),
+              tick,
+              point,
+              crypto.randomUUID(),
+            );
+            return {
+              putTokens: existing ? [] : [token],
+              putKeyframes: [fullKeyframe(scene, token.id, fields)],
+            };
+          });
+        },
+
+        /**
+         * Arrastar o token: grava a posição no instante (upsert do keyframe). Com
+         * `correctPrevious` (`Alt`), corrige o keyframe em vigor em vez de criar outro.
+         */
+        moveToken(
+          tokenId: Uuid,
+          to: Point,
+          tick: Tick,
+          options: { correctPrevious?: boolean } = {},
+        ): Promise<void> {
+          return edit('moveToken', (scene) => {
+            if (!scene.tokens.some((t) => t.id === tokenId)) return null;
+            const fields = planKeyframeMove(
+              keyframesOf(scene, tokenId),
+              tick,
+              to,
+              crypto.randomUUID(),
+              options,
+            );
+            return { putKeyframes: [fullKeyframe(scene, tokenId, fields)] };
+          });
+        },
+
+        /** Move um keyframe (ponto do rastro) sem mudar o instante dele. */
+        moveKeyframe(keyframeId: Uuid, to: Point): Promise<void> {
+          return edit('moveKeyframe', (scene) => {
+            const keyframe = scene.keyframes.find((k) => k.id === keyframeId);
+            return keyframe ? { putKeyframes: [{ ...keyframe, x: to.x, y: to.y }] } : null;
+          });
+        },
+
+        /**
+         * "Sair do mapa aqui": keyframe `visible = false` no instante, na posição em que o
+         * token está. Nada muda se ele já estiver oculto.
+         */
+        hideToken(tokenId: Uuid, tick: Tick): Promise<void> {
+          return edit('hideToken', (scene) => {
+            const keyframes = keyframesOf(scene, tokenId);
+            const at = evaluateKeyframes(keyframes, tick);
+            if (!at) return null;
+            const fields = planKeyframeHide(keyframes, tick, at, crypto.randomUUID());
+            return { putKeyframes: [fullKeyframe(scene, tokenId, fields)] };
+          });
+        },
+
+        setInterpolation(keyframeId: Uuid, interpolation: InterpolationMode): Promise<void> {
+          return edit('interpolation', (scene) => {
+            const keyframe = scene.keyframes.find((k) => k.id === keyframeId);
+            if (!keyframe || keyframe.interpolation === interpolation) return null;
+            return { putKeyframes: [{ ...keyframe, interpolation }] };
+          });
+        },
+
+        /** Remove um keyframe; o último keyframe leva o token junto (sem ele, nunca aparece). */
+        removeKeyframe(keyframeId: Uuid): Promise<void> {
+          return edit('removeKeyframe', (scene) => {
+            const keyframe = scene.keyframes.find((k) => k.id === keyframeId);
+            if (!keyframe) return null;
+            const others = scene.keyframes.filter(
+              (k) => k.tokenId === keyframe.tokenId && k.id !== keyframeId,
+            );
+            return others.length > 0
+              ? { removeKeyframes: [keyframeId] }
+              : { removeTokens: [keyframe.tokenId] };
+          });
+        },
+
+        /** Tira o token do mapa, com todos os keyframes. */
+        removeToken(tokenId: Uuid): Promise<void> {
+          return edit('removeToken', (scene) =>
+            scene.tokens.some((t) => t.id === tokenId) ? { removeTokens: [tokenId] } : null,
+          );
+        },
       };
     },
   ),
 );
+
+function keyframesOf(scene: MapScene | null, tokenId: Uuid): TokenKeyframe[] {
+  return sortKeyframes(scene?.keyframes.filter((k) => k.tokenId === tokenId) ?? []);
+}
+
+/** Completa os campos decididos pelas regras de edição com os do token e do mundo. */
+function fullKeyframe(scene: MapScene, tokenId: Uuid, fields: KeyframeFields): TokenKeyframe {
+  return {
+    ...fields,
+    worldId: scene.map.worldId,
+    tokenId,
+    updatedAt: new Date().toISOString(),
+  };
+}
