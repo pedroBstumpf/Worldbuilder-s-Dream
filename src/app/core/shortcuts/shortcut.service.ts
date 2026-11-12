@@ -9,6 +9,8 @@ export interface Shortcut {
   readonly shift?: boolean;
   /** Dispara também com foco num campo de texto (ex.: Esc). */
   readonly inFields?: boolean;
+  /** Dispara de novo enquanto a tecla fica pressionada (ex.: setas da linha do tempo). */
+  readonly repeat?: boolean;
   /** Mantém o comportamento padrão do navegador (ex.: colar). */
   readonly keepDefault?: boolean;
   /** Só vale quando devolve `true` (ex.: Enter só com uma ferramenta de desenho ativa). */
@@ -92,7 +94,7 @@ export class ShortcutService {
       // Segurar: só o primeiro keydown conta.
       if (event.repeat || this.held.has(keyOf(event))) return;
       this.held.set(keyOf(event), shortcut);
-    } else if (event.repeat && !shortcut.inFields) {
+    } else if (event.repeat && !shortcut.inFields && !shortcut.repeat) {
       return;
     }
     shortcut.down(event);

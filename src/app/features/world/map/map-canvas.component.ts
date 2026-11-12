@@ -14,7 +14,7 @@ import {
 import type { SavedCamera } from '@core/prefs/ui-prefs';
 import { MAP_STRINGS } from '@core/strings/map.strings';
 import type { Point } from '@domain/geometry';
-import type { PolygonVertex, Uuid } from '@domain/models';
+import type { PolygonVertex, Tick, Uuid } from '@domain/models';
 import type { MapScene } from '@domain/ports';
 import {
   LAYER_IDS,
@@ -132,6 +132,8 @@ export class MapCanvasComponent {
   /** Câmera salva do mapa, consultada ao abrir cada mapa. */
   readonly savedCamera = input<(mapId: Uuid) => SavedCamera | null>(() => null);
   readonly mapNames = input<Record<Uuid, string>>({});
+  /** Instante da linha do tempo (docs/06 §1: `engine.setTime(timeline.currentTick())`). */
+  readonly time = input<Tick>(0);
 
   readonly cameraChange = output<CameraChange>();
   readonly measure = output<{ points: Point[]; distance: number }>();
@@ -213,6 +215,7 @@ export class MapCanvasComponent {
       for (const layer of LAYER_IDS) engine?.setLayerVisible(layer, !hidden.includes(layer));
     });
     effect(() => this.engine()?.setInsets(this.insets()));
+    effect(() => this.engine()?.setTime(this.time()));
   }
 
   /** Comandos das barras (enquadrar, zoom) e do teclado. */
@@ -252,7 +255,7 @@ export class MapCanvasComponent {
     };
     const action = actions[event.key];
     if (!action) return;
-    // As setas aqui movem o mapa (fora dele, passam o tempo, no M3).
+    // As setas aqui movem o mapa (fora dele, passam o tempo).
     event.preventDefault();
     event.stopPropagation();
     action();

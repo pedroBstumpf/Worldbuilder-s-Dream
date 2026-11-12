@@ -28,7 +28,8 @@ import { MAP_STRINGS } from '@core/strings/map.strings';
 import { WORLD_STRINGS } from '@core/strings/world.strings';
 import type { Point } from '@domain/geometry';
 import { mapNameFromFile } from '@domain/maps';
-import type { EntityKind, PolygonVertex, Uuid } from '@domain/models';
+import { eventColor } from '@domain/events';
+import { isTick, type EntityKind, type PolygonVertex, type Uuid } from '@domain/models';
 import { MapImageError, readMapImage, type ProcessedMapImage } from '@engine/import/read-map-image';
 import type { LayerId, ToolId, ViewportInsets } from '@engine/map-engine';
 import { DemoBadgeComponent } from '@shared/ui/demo-badge/demo-badge.component';
@@ -66,7 +67,9 @@ import {
 } from '../search/command-palette.component';
 import { EntityStore } from '../state/entity.store';
 import { MapStore } from '../state/map.store';
+import { TimelineStore } from '../state/timeline.store';
 import { WorldStore } from '../state/world.store';
+import { TimelineBarComponent, type TimelineEventMark } from '../timeline/timeline-bar.component';
 import { ExplorerPanelComponent } from './explorer-panel.component';
 import { LeftToolbarComponent, type ToggleableLayer } from './left-toolbar.component';
 
@@ -77,9 +80,19 @@ type Entrance = 'zoom' | 'fade' | 'none';
 const TOP_BAR = 48;
 const LEFT_BAR = 12 + 58 + 8;
 const GAP = 8;
+/** Altura da linha do tempo (docs/05 › wd-timeline-bar; repetida no CSS de :host). */
+const TIMELINE_BAR = 88;
+/** Espera antes de refletir o instante na URL (docs/06 §7). */
+const URL_TICK_DELAY_MS = 300;
 
 /** Elementos onde Espaço e Enter já têm função própria. */
-const INTERACTIVE = 'button, a, input, select, textarea, [role="menuitem"], [role="separator"]';
+const INTERACTIVE =
+  'button, a, input, select, textarea, [role="menuitem"], [role="separator"], [role="slider"]';
+/** Elementos que usam as setas (listas, abas, campos, o próprio mapa). */
+const ARROW_KEYS_OWNERS =
+  'input, select, textarea, [contenteditable], [role="tab"], [role="slider"], [role="listbox"], ' +
+  '[role="option"], [role="menu"], [role="menuitem"], [role="application"], [role="separator"], ' +
+  '[role="combobox"], [role="dialog"]';
 
 /**
  * Tela do mundo (docs/04 › Layout VTT): canvas em tela cheia (ou a área de importação,
@@ -99,8 +112,10 @@ const INTERACTIVE = 'button, a, input, select, textarea, [role="menuitem"], [rol
     MapImportAreaComponent,
     MapImportDirective,
     MapTitleComponent,
+    TimelineBarComponent,
   ],
-  providers: [WorldStore, MapStore, EntityStore],
+  providers: [WorldStore, MapStore, EntityStore, TimelineStore],
+  host: { '[class.has-timeline]': 'store.activeMap() !== null' },
   template: `
     <main
       class="map-host"
@@ -121,6 +136,7 @@ const INTERACTIVE = 'button, a, input, select, textarea, [role="menuitem"], [rol
           [insets]="insets()"
           [savedCamera]="cameraFor"
           [mapNames]="mapNames()"
+          [time]="timeline.currentTick()"
           (cameraChange)="saveCamera($event)"
           (measure)="onMeasure($event)"
           (regionDrawn)="onRegionDrawn($event)"
@@ -176,6 +192,13 @@ const INTERACTIVE = 'button, a, input, select, textarea, [role="menuitem"], [rol
       @if (hint(); as text) {
         <p class="hint wd-panel" aria-live="polite">{{ text }}</p>
       }
+      <wd-timeline-bar
+        #timelineBar
+        [attr.data-entrance]="entrance"
+        [events]="eventMarks()"
+        [nowTick]="store.world()?.nowTick ?? null"
+        (eventClick)="goToEvent($event)"
+      />
     }
 
     @if (entities.openId(); as openId) {
@@ -261,6 +284,11 @@ const INTERACTIVE = 'button, a, input, select, textarea, [role="menuitem"], [rol
   styles: `
     :host {
       display: block;
+    }
+
+    /* Barras laterais e fichas terminam acima da linha do tempo (TIMELINE_BAR). */
+    :host(.has-timeline) {
+      --wd-bottom-bar: 88px;
     }
 
     .map-host {
@@ -360,6 +388,12 @@ const INTERACTIVE = 'button, a, input, select, textarea, [role="menuitem"], [rol
         backwards;
     }
 
+    /* Por último a linha do tempo (docs/05 › 3, passo 5). */
+    wd-timeline-bar[data-entrance='zoom'] {
+      animation: from-bottom var(--wd-dur-base) var(--wd-ease-out) calc(var(--wd-dur-zoom) + 180ms)
+        backwards;
+    }
+
     :host-context([data-book-zoom='short']) [data-entrance='zoom'] {
       animation-delay: var(--wd-dur-zoom-short);
     }
@@ -384,6 +418,12 @@ const INTERACTIVE = 'button, a, input, select, textarea, [role="menuitem"], [rol
     @keyframes from-right {
       from {
         transform: translateX(120%);
+      }
+    }
+
+    @keyframes from-bottom {
+      from {
+        transform: translateY(100%);
       }
     }
 
@@ -413,10 +453,13 @@ export default class WorldShellPage {
   readonly map = input<string>();
   /** `?sel=` da URL: entidade com a ficha aberta. */
   readonly sel = input<string>();
+  /** `?t=` da URL: instante da linha do tempo. */
+  readonly t = input<string>();
 
   protected readonly store = inject(WorldStore);
   protected readonly mapStore = inject(MapStore);
   protected readonly entities = inject(EntityStore);
+  protected readonly timeline = inject(TimelineStore);
   protected readonly entityText = ENTITY_STRINGS;
   protected readonly toasts = inject(ToastService);
   protected readonly text = WORLD_STRINGS;
@@ -441,9 +484,20 @@ export default class WorldShellPage {
       top: TOP_BAR + GAP,
       left: bars.leftCollapsed ? 0 : LEFT_BAR,
       right: bars.rightCollapsed ? 0 : bars.rightWidth + 12 + GAP,
-      bottom: 0,
+      bottom: TIMELINE_BAR + GAP,
     };
   });
+
+  /** Eventos no trilho, com a cor do marcador já resolvida. */
+  protected readonly eventMarks = computed<TimelineEventMark[]>(() =>
+    this.entities.events().map((event) => ({
+      id: event.id,
+      title: event.title,
+      tickStart: event.tickStart,
+      tickEnd: event.tickEnd,
+      color: eventColor(event),
+    })),
+  );
 
   protected readonly mapNames = computed(() =>
     Object.fromEntries(this.store.maps().map((m) => [m.id, m.name])),
@@ -476,6 +530,7 @@ export default class WorldShellPage {
 
   private readonly title = viewChild.required<ElementRef<HTMLElement>>('title');
   private readonly canvas = viewChild<MapCanvasComponent>('canvas');
+  private readonly timelineBar = viewChild<TimelineBarComponent>('timelineBar');
   private readonly explorer = viewChild<ExplorerPanelComponent>('explorer');
   private readonly sheet = viewChild<EntitySheetComponent>('sheet');
   private paletteOpen = false;
@@ -513,6 +568,24 @@ export default class WorldShellPage {
     effect(() => {
       const map = this.store.activeMap();
       if (map) untracked(() => this.mapStore.syncMap(map));
+    });
+    // Avisos sobem acima da linha do tempo enquanto ela existe.
+    effect(() => {
+      const root = this.document.documentElement.style;
+      if (this.store.activeMap()) root.setProperty('--wd-toast-offset', `${TIMELINE_BAR}px`);
+      else root.removeProperty('--wd-toast-offset');
+    });
+    // Instante da linha do tempo na URL (`?t=`), com espera (docs/06 §7).
+    effect((onCleanup) => {
+      const tick = this.timeline.currentTick();
+      if (this.store.status() !== 'ready') return;
+      const timer = setTimeout(() => this.replaceParam('t', String(tick)), URL_TICK_DELAY_MS);
+      onCleanup(() => clearTimeout(timer));
+    });
+    // Faixa do mundo mudou (calendário, evento fora da faixa): cursor e trilho acompanham.
+    effect(() => {
+      this.store.range();
+      untracked(() => this.timeline.syncRange());
     });
     // Ficha aberta: reflete o id na URL (`?sel=`).
     effect(() => {
@@ -552,6 +625,7 @@ export default class WorldShellPage {
     });
 
     inject(DestroyRef).onDestroy(() => {
+      this.document.documentElement.style.removeProperty('--wd-toast-offset');
       this.store.dispose();
       void this.prefs.flush();
     });
@@ -747,6 +821,14 @@ export default class WorldShellPage {
     }
   }
 
+  /** Marcador de evento no trilho: o cursor vai para o início do evento. */
+  protected goToEvent(id: Uuid): void {
+    const event = this.entities.events().find((e) => e.id === id);
+    if (!event) return;
+    this.timeline.pause();
+    this.timeline.seek(event.tickStart);
+  }
+
   /** Abre a ficha (do Explorar, da paleta, de uma menção ou citação). */
   protected openEntity(id: Uuid): void {
     const entity = this.entities.byId().get(id);
@@ -901,6 +983,9 @@ export default class WorldShellPage {
     const notOnControl = (event: KeyboardEvent) =>
       !(event.target instanceof Element && event.target.closest(INTERACTIVE));
     const hasMap = () => this.store.activeMap() !== null;
+    // Setas passam o tempo quando nenhum controle as usa (docs/04 › Atalhos).
+    const ownsArrows = (event: KeyboardEvent) =>
+      event.target instanceof Element && event.target.closest(ARROW_KEYS_OWNERS) !== null;
     const remove = inject(ShortcutService).register([
       { key: 'v', when: hasMap, down: () => this.setTool('select') },
       { key: 'h', when: hasMap, down: () => this.setTool('pan') },
@@ -934,6 +1019,19 @@ export default class WorldShellPage {
         down: () => this.canvas()?.commitTool(),
       },
       { key: 'k', mod: true, inFields: true, down: () => void this.openPalette() },
+      { key: 't', when: hasMap, down: () => this.timelineBar()?.focusCursor() },
+      {
+        key: 'arrowleft',
+        repeat: true,
+        when: (event) => hasMap() && !ownsArrows(event),
+        down: (event) => this.timeline.step(-1, event.shiftKey),
+      },
+      {
+        key: 'arrowright',
+        repeat: true,
+        when: (event) => hasMap() && !ownsArrows(event),
+        down: (event) => this.timeline.step(1, event.shiftKey),
+      },
       {
         key: 'escape',
         when: () => this.entities.openId() !== null && !drawing(),
@@ -950,6 +1048,8 @@ export default class WorldShellPage {
       this.leave(status === 'not_found' ? this.text.notFound : this.text.loadFailed);
       return;
     }
+    const t = Number(this.t());
+    this.timeline.init(this.t() && isTick(t) ? t : null, this.store.world()?.nowTick ?? null);
     await entitiesLoaded;
     const selected = this.sel();
     if (selected) this.openEntity(selected);
