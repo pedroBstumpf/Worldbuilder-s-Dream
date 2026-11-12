@@ -1,5 +1,18 @@
 import type { Uuid } from '@domain/models';
 
+/** Espera depois da última edição antes de gravar (docs/04 › Autosave, 400–800 ms). */
+export const SAVE_DELAY_MS = 600;
+
+export type SaveStatus = 'saving' | 'saved' | 'failed';
+
+/** Falha de gravação a avisar: `conflict` recarregou o item; as outras guardam a edição. */
+export interface SaveFailure {
+  /** Id do item (entidade ou evento). */
+  readonly entityId: Uuid;
+  readonly conflict: boolean;
+  readonly at: number;
+}
+
 /** Edição ainda não gravada de um item. */
 interface Pending<P> {
   patch: P;

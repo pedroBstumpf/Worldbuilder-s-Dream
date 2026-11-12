@@ -47,6 +47,12 @@ import {
   type CreateEntityResult,
 } from '../entities/create-entity-dialog.component';
 import { EntitySheetComponent } from '../entities/entity-sheet.component';
+import { CreateEventDialogComponent, ExtendRangeDialogComponent } from '../events/event-dialogs';
+import {
+  EventSheetComponent,
+  type EventPlacement,
+  type EventRange,
+} from '../events/event-sheet.component';
 import { MapImportAreaComponent } from '../import/map-import-area.component';
 import { MapImportDirective } from '../import/map-import.directive';
 import { pickImageFile } from '../import/pick-image-file';
@@ -67,6 +73,7 @@ import {
   type PaletteResult,
 } from '../search/command-palette.component';
 import { EntityStore } from '../state/entity.store';
+import { EventStore } from '../state/event.store';
 import { MapStore } from '../state/map.store';
 import { TimelineStore } from '../state/timeline.store';
 import { WorldStore } from '../state/world.store';
@@ -111,6 +118,7 @@ const ARROW_KEYS_OWNERS =
   imports: [
     DemoBadgeComponent,
     EntitySheetComponent,
+    EventSheetComponent,
     ExplorerPanelComponent,
     IconButtonComponent,
     LeftToolbarComponent,
@@ -120,7 +128,7 @@ const ARROW_KEYS_OWNERS =
     MapTitleComponent,
     TimelineBarComponent,
   ],
-  providers: [WorldStore, MapStore, EntityStore, TimelineStore],
+  providers: [WorldStore, MapStore, EntityStore, EventStore, TimelineStore],
   host: { '[class.has-timeline]': 'store.activeMap() !== null' },
   template: `
     <main
@@ -193,6 +201,8 @@ const ARROW_KEYS_OWNERS =
         (collapsedChange)="setBars({ rightCollapsed: $event })"
         (openEntity)="openEntity($event)"
         (create)="createEntity($event)"
+        (openEvent)="openEvent($event)"
+        (createEvent)="createEvent()"
         (retry)="entities.load(worldId())"
       />
       @if (hint(); as text) {
@@ -204,6 +214,7 @@ const ARROW_KEYS_OWNERS =
         [events]="eventMarks()"
         [nowTick]="store.world()?.nowTick ?? null"
         (eventClick)="goToEvent($event)"
+        (createEvent)="createEvent()"
         (openCalendar)="openCalendar()"
       />
     }
@@ -216,6 +227,20 @@ const ARROW_KEYS_OWNERS =
         (closed)="closeSheet()"
         (trash)="trashEntity($event)"
         (openEntity)="openEntity($event)"
+      />
+    }
+
+    @if (events.openId(); as openId) {
+      <wd-event-sheet
+        #eventSheet
+        [eventId]="openId"
+        [placement]="placement()"
+        [style.--sheet-width.px]="sheetWidth()"
+        (closed)="closeEventSheet()"
+        (trash)="trashEvent($event)"
+        (openEntity)="openEntity($event)"
+        (goTo)="timeline.seek($event)"
+        (outOfRange)="extendRange($event)"
       />
     }
 
@@ -467,6 +492,7 @@ export default class WorldShellPage {
   protected readonly mapStore = inject(MapStore);
   protected readonly entities = inject(EntityStore);
   protected readonly timeline = inject(TimelineStore);
+  protected readonly events = inject(EventStore);
   protected readonly entityText = ENTITY_STRINGS;
   protected readonly toasts = inject(ToastService);
   protected readonly text = WORLD_STRINGS;
@@ -497,7 +523,7 @@ export default class WorldShellPage {
 
   /** Eventos no trilho, com a cor do marcador já resolvida. */
   protected readonly eventMarks = computed<TimelineEventMark[]>(() =>
-    this.entities.events().map((event) => ({
+    this.events.sorted().map((event) => ({
       id: event.id,
       title: event.title,
       tickStart: event.tickStart,
@@ -540,7 +566,18 @@ export default class WorldShellPage {
   private readonly timelineBar = viewChild<TimelineBarComponent>('timelineBar');
   private readonly explorer = viewChild<ExplorerPanelComponent>('explorer');
   private readonly sheet = viewChild<EntitySheetComponent>('sheet');
+  private readonly eventSheet = viewChild<EventSheetComponent>('eventSheet');
+
+  /** Situação do evento aberto no mapa ativo (marcadores chegam com os tokens de evento). */
+  protected readonly placement = computed<EventPlacement | null>(() => {
+    const map = this.store.activeMap();
+    const id = this.events.openId();
+    if (!map || !id) return null;
+    const placed = (this.mapStore.scene()?.tokens ?? []).some((token) => token.eventId === id);
+    return { mapName: map.name, placed };
+  });
   private paletteOpen = false;
+  private rangeDialogOpen = false;
   private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly document = inject(DOCUMENT);
@@ -594,10 +631,30 @@ export default class WorldShellPage {
       this.store.range();
       untracked(() => this.timeline.syncRange());
     });
-    // Ficha aberta: reflete o id na URL (`?sel=`).
+    // Ficha aberta (entidade ou evento): reflete o id na URL (`?sel=`).
     effect(() => {
-      const id = this.entities.openId();
+      const id = this.entities.openId() ?? this.events.openId();
       if (this.entities.status() === 'ready') untracked(() => this.replaceParam('sel', id));
+    });
+    // Gravação de evento que falhou: mesmo tratamento das fichas de entidade.
+    effect(() => {
+      const failure = this.events.saveFailure();
+      if (!failure) return;
+      untracked(() => {
+        const text = this.entityText.sheet;
+        this.toasts.show(
+          failure.conflict
+            ? { message: text.conflict, kind: 'error' }
+            : {
+                message: text.saveFailed,
+                kind: 'error',
+                action: {
+                  label: text.retry,
+                  run: () => void this.events.flush(failure.entityId),
+                },
+              },
+        );
+      });
     });
     // Gravação da ficha que falhou: conflito recarrega; outras falhas oferecem "Tentar de novo".
     effect(() => {
@@ -866,7 +923,7 @@ export default class WorldShellPage {
 
   /** Marcador de evento no trilho: o cursor vai para o início do evento. */
   protected goToEvent(id: Uuid): void {
-    const event = this.entities.events().find((e) => e.id === id);
+    const event = this.events.byId().get(id);
     if (!event) return;
     this.timeline.pause();
     this.timeline.seek(event.tickStart);
@@ -876,14 +933,101 @@ export default class WorldShellPage {
   protected openEntity(id: Uuid): void {
     const entity = this.entities.byId().get(id);
     if (!entity) return;
+    if (this.events.openId()) this.events.open(null);
     this.entities.open(id);
     this.explorer()?.showKind(entity.kind);
   }
 
-  protected closeSheet(): void {
+  /** Abre a ficha do evento (Explorar, paleta, marcador). Só uma ficha fica aberta. */
+  protected openEvent(id: Uuid): void {
+    if (!this.events.byId().has(id)) return;
+    if (this.entities.openId()) this.closeSheet(false);
+    this.events.open(id);
+    this.explorer()?.showEvents();
+  }
+
+  protected closeEventSheet(): void {
+    const id = this.events.openId();
+    this.events.open(null);
+    this.focusRowOrTitle(id);
+    if (id) void this.events.flush(id);
+  }
+
+  /** Novo evento na data do cursor (arredondada ao dia). */
+  protected async createEvent(): Promise<void> {
+    const calendar = this.store.calendar();
+    const tick = calendar.startOf('day', this.timeline.currentTick());
+    const ref = this.dialogs.open<CreateEventDialogComponent, string, string>(
+      CreateEventDialogComponent,
+      { data: calendar.format(tick), autoFocus: 'first-tabbable' },
+    );
+    const title = await firstValueFrom(ref.closed);
+    if (!title) return;
+    const text = TIME_STRINGS.events.create;
+    try {
+      const event = await this.events.create(title, tick);
+      this.openEvent(event.id);
+      void this.announcer.announce(text.created(event.title));
+      afterNextRender(() => this.eventSheet()?.focusTitle(), { injector: this.injector });
+    } catch {
+      this.toasts.show({ message: text.failed, kind: 'error' });
+    }
+  }
+
+  protected async trashEvent(id: Uuid): Promise<void> {
+    const text = this.entityText.sheet;
+    try {
+      const event = await this.events.trash(id);
+      this.title().nativeElement.focus({ preventScroll: true });
+      this.toasts.show({
+        message: text.trashed(event.title),
+        kind: 'info',
+        action: {
+          label: text.undo,
+          run: () =>
+            void this.events
+              .restore(id)
+              .then(() => this.openEvent(id))
+              .catch(() => this.toasts.show({ message: text.restoreFailed, kind: 'error' })),
+        },
+      });
+    } catch {
+      this.toasts.show({ message: text.trashFailed, kind: 'error' });
+    }
+  }
+
+  /** Evento fora da faixa do mundo: pergunta se amplia a faixa (docs/06 › Faixa do mundo). */
+  protected async extendRange({ start, end }: EventRange): Promise<void> {
+    const world = this.store.world();
+    if (!world || this.rangeDialogOpen) return;
+    this.rangeDialogOpen = true;
+    const outside = start < world.timeStart ? start : end;
+    const ref = this.dialogs.open<ExtendRangeDialogComponent, string, boolean>(
+      ExtendRangeDialogComponent,
+      { data: this.store.calendar().format(outside), autoFocus: 'first-tabbable' },
+    );
+    const confirmed = await firstValueFrom(ref.closed);
+    this.rangeDialogOpen = false;
+    if (!confirmed) return;
+    try {
+      await this.store.updateTime({
+        timeStart: Math.min(world.timeStart, start),
+        timeEnd: Math.max(world.timeEnd, end),
+      });
+    } catch {
+      this.toasts.show({ message: TIME_STRINGS.events.range.failed, kind: 'error' });
+    }
+  }
+
+  protected closeSheet(restoreFocus = true): void {
     const id = this.entities.openId();
     this.entities.open(null);
-    // O foco volta para a linha da entidade no Explorar (ou para o título).
+    if (restoreFocus) this.focusRowOrTitle(id);
+    if (id) void this.entities.flush(id);
+  }
+
+  /** O foco volta para a linha do item no Explorar (ou para o título). */
+  private focusRowOrTitle(id: Uuid | null): void {
     afterNextRender(
       () => {
         const row = id
@@ -893,7 +1037,6 @@ export default class WorldShellPage {
       },
       { injector: this.injector },
     );
-    if (id) void this.entities.flush(id);
   }
 
   /** Nova entidade: nome e tipo num diálogo; depois a ficha abre com o nome em foco. */
@@ -962,6 +1105,9 @@ export default class WorldShellPage {
         icon: 'add',
       })),
       ...(this.store.activeMap()
+        ? [{ id: 'create-event', label: TIME_STRINGS.events.create.title, icon: 'add_diamond' }]
+        : []),
+      ...(this.store.activeMap()
         ? [
             { id: 'fit', label: text.commands.fit, icon: 'fit_screen' },
             { id: 'explorer', label: text.commands.toggleExplorer, icon: 'right_panel_open' },
@@ -985,12 +1131,17 @@ export default class WorldShellPage {
       this.openEntity(result.id);
       return;
     }
-    // Eventos ganham ficha e marcador no M3.
-    if (result.type === 'event') return;
+    if (result.type === 'event') {
+      this.openEvent(result.id);
+      return;
+    }
     const [command, arg] = result.id.split(':');
     switch (command) {
       case 'create':
         void this.createEntity(arg as EntityKind);
+        break;
+      case 'create-event':
+        void this.createEvent();
         break;
       case 'fit':
         this.fitMap();
@@ -1080,6 +1231,11 @@ export default class WorldShellPage {
         when: () => this.entities.openId() !== null && !drawing(),
         down: () => this.closeSheet(),
       },
+      {
+        key: 'escape',
+        when: () => this.events.openId() !== null && !drawing(),
+        down: () => this.closeEventSheet(),
+      },
     ]);
     inject(DestroyRef).onDestroy(remove);
   }
@@ -1095,7 +1251,8 @@ export default class WorldShellPage {
     this.timeline.init(this.t() && isTick(t) ? t : null, this.store.world()?.nowTick ?? null);
     await entitiesLoaded;
     const selected = this.sel();
-    if (selected) this.openEntity(selected);
+    if (selected && this.entities.byId().has(selected)) this.openEntity(selected);
+    else if (selected) this.openEvent(selected);
     await this.transitions.viewTransition()?.finished.catch(() => undefined);
     // Fim da transição: foco no título e anúncio (docs/05 › Regras).
     const name = this.store.activeMap()?.name ?? this.store.world()?.name ?? '';

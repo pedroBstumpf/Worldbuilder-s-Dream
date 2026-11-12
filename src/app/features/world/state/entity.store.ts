@@ -1,10 +1,9 @@
 import { computed, inject } from '@angular/core';
 import { isEmptyRichText, mentionedEntityIds, richTextToPlain } from '@domain/entities';
-import type { Entity, EntityKind, RichTextDoc, Uuid, WorldEvent } from '@domain/models';
+import type { Entity, EntityKind, RichTextDoc, Uuid } from '@domain/models';
 import {
   AssetRepository,
   EntityRepository,
-  EventRepository,
   isAppError,
   MentionRepository,
   type EntityPatch,
@@ -18,20 +17,15 @@ import {
   withMethods,
   withState,
 } from '@ngrx/signals';
-import { Autosaver } from './autosave';
+import { Autosaver, SAVE_DELAY_MS, type SaveFailure, type SaveStatus } from './autosave';
+import { EventStore } from './event.store';
+
+export type { SaveFailure, SaveStatus } from './autosave';
 
 /** Espera depois da última edição antes de gravar (docs/04 › Autosave, 400–800 ms). */
-export const ENTITY_SAVE_DELAY_MS = 600;
+export const ENTITY_SAVE_DELAY_MS = SAVE_DELAY_MS;
 
 export type EntitiesStatus = 'idle' | 'loading' | 'ready' | 'error';
-export type SaveStatus = 'saving' | 'saved' | 'failed';
-
-/** Falha de gravação a avisar: `conflict` recarregou o item; as outras guardam a edição. */
-export interface SaveFailure {
-  readonly entityId: Uuid;
-  readonly conflict: boolean;
-  readonly at: number;
-}
 
 /** Texto que cita uma entidade ("Citada em"). */
 export interface Citation {
@@ -44,7 +38,6 @@ export interface Citation {
 interface EntityState {
   readonly worldId: Uuid | null;
   readonly entities: readonly Entity[];
-  readonly events: readonly WorldEvent[];
   readonly status: EntitiesStatus;
   /** Entidade com a ficha aberta (`?sel=`). */
   readonly openId: Uuid | null;
@@ -57,33 +50,34 @@ interface EntityState {
 const byName = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
 
 /**
- * Entidades e eventos do mundo aberto (docs/04 › Estado), com a ficha aberta, os
- * retratos e o índice de busca. Edições são otimistas: o estado muda na hora e a
- * gravação sai depois de `ENTITY_SAVE_DELAY_MS`, uma por vez por entidade.
+ * Entidades do mundo aberto (docs/04 › Estado), com a ficha aberta, os retratos e o
+ * índice de busca (que inclui os eventos da `EventStore`). Edições são otimistas: o estado
+ * muda na hora e a gravação sai depois de `ENTITY_SAVE_DELAY_MS`, uma por vez por entidade.
  */
 export const EntityStore = signalStore(
   withState<EntityState>({
     worldId: null,
     entities: [],
-    events: [],
     status: 'idle',
     openId: null,
     portraits: {},
     saveStatus: {},
     saveFailure: null,
   }),
-  withComputed(({ entities, events, openId }) => ({
+  withComputed(({ entities, openId }, eventStore = inject(EventStore)) => ({
+    /** Eventos do mundo (a `EventStore` é a dona; aqui para a busca e as citações). */
+    events: eventStore.events,
     /** Entidades em ordem alfabética. */
     sorted: computed(() => [...entities()].sort((a, b) => byName.compare(a.name, b.name))),
     byId: computed(() => new Map(entities().map((entity) => [entity.id, entity]))),
     openEntity: computed(() => entities().find((entity) => entity.id === openId()) ?? null),
-    search: computed(() => new WorldSearch(entities(), events())),
+    search: computed(() => new WorldSearch(entities(), eventStore.events())),
   })),
   withMethods(
     (
       store,
       repo = inject(EntityRepository),
-      eventsRepo = inject(EventRepository),
+      eventStore = inject(EventStore),
       mentions = inject(MentionRepository),
       assets = inject(AssetRepository),
     ) => {
@@ -149,11 +143,8 @@ export const EntityStore = signalStore(
         async load(worldId: Uuid): Promise<void> {
           patchState(store, { worldId, status: 'loading' });
           try {
-            const [entities, events] = await Promise.all([
-              repo.list(worldId),
-              eventsRepo.list(worldId),
-            ]);
-            patchState(store, { entities, events, status: 'ready' });
+            const [entities] = await Promise.all([repo.list(worldId), eventStore.load(worldId)]);
+            patchState(store, { entities, status: 'ready' });
           } catch {
             patchState(store, { status: 'error' });
           }
