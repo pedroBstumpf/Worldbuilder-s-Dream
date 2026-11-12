@@ -1,7 +1,7 @@
 import type { AutoFocusTarget } from '@angular/cdk/dialog';
 import { Dialog, DialogRef } from '@angular/cdk/dialog';
 import type { ComponentType } from '@angular/cdk/portal';
-import { inject, Injectable, InjectionToken } from '@angular/core';
+import { inject, Injectable, InjectionToken, type Injector } from '@angular/core';
 
 /** Id do título do diálogo aberto; o `<wd-dialog>` usa no `<h2>` (aria-labelledby). */
 export const WD_DIALOG_TITLE_ID = new InjectionToken<string>('WD_DIALOG_TITLE_ID');
@@ -16,6 +16,11 @@ export interface DialogOptions<D> {
    * título; use `'first-tabbable'` em formulários (respeita `cdkFocusInitial`).
    */
   readonly autoFocus?: AutoFocusTarget | string;
+  /**
+   * Injetor de onde o componente lê os serviços (ex.: as stores da tela que abriu o
+   * diálogo). Padrão: o da aplicação.
+   */
+  readonly injector?: Injector;
 }
 
 let nextTitleId = 0;
@@ -35,6 +40,7 @@ export class DialogService {
     const titleId = `wd-dialog-title-${nextTitleId++}`;
     return this.dialog.open<R, D, C>(component, {
       data: options.data,
+      injector: options.injector,
       disableClose: options.disableClose ?? false,
       autoFocus: options.autoFocus ?? 'dialog',
       restoreFocus: true,
