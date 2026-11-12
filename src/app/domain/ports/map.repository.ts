@@ -1,6 +1,6 @@
 import type { MapAnnotation } from '../models/annotation';
 import type { Uuid } from '../models/common';
-import type { MapLink, WorldMap } from '../models/map';
+import type { MapImageVersion, MapLink, WorldMap } from '../models/map';
 import type { MapToken, TokenKeyframe } from '../models/token';
 
 export type MapDraft = Pick<WorldMap, 'id' | 'worldId' | 'name' | 'width' | 'height'> &
@@ -27,6 +27,14 @@ export type MapTokenInput = Omit<MapToken, 'createdAt'>;
 /** Keyframe completo; o adaptador faz upsert por `(tokenId, tick)` e preenche `updatedAt`. */
 export type TokenKeyframeInput = Omit<TokenKeyframe, 'updatedAt'>;
 
+/** Nova versão da imagem; `id` gerado no cliente. */
+export type MapImageVersionDraft = Pick<
+  MapImageVersion,
+  'id' | 'worldId' | 'mapId' | 'imageAssetId' | 'tickStart'
+>;
+
+export type MapImageVersionPatch = Partial<Pick<MapImageVersion, 'imageAssetId' | 'tickStart'>>;
+
 export type MapAnnotationInput = Omit<
   MapAnnotation,
   'version' | 'createdBy' | 'createdAt' | 'updatedAt'
@@ -47,6 +55,8 @@ export interface MapScene {
   keyframes: TokenKeyframe[];
   annotations: MapAnnotation[];
   links: MapLink[];
+  /** Versões da imagem fora da lixeira, em ordem crescente de `tickStart`. */
+  imageVersions: MapImageVersion[];
 }
 
 /** Porta dos mapas e do que vive neles. Convenções em `WorldRepository`. */
@@ -78,4 +88,17 @@ export abstract class MapRepository {
 
   abstract saveLink(link: MapLink): Promise<MapLink>;
   abstract deleteLink(id: Uuid): Promise<void>;
+
+  /**
+   * Versões da imagem no tempo (docs/06 §1). Dois `tickStart` iguais no mesmo mapa (entre
+   * as que não estão na lixeira) rejeitam com `AppError('conflict')`.
+   */
+  abstract createImageVersion(draft: MapImageVersionDraft): Promise<MapImageVersion>;
+  abstract updateImageVersion(
+    id: Uuid,
+    patch: MapImageVersionPatch,
+    expectedVersion: number,
+  ): Promise<MapImageVersion>;
+  abstract moveImageVersionToTrash(id: Uuid, expectedVersion: number): Promise<void>;
+  abstract restoreImageVersion(id: Uuid): Promise<MapImageVersion>;
 }

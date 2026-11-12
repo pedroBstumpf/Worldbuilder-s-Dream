@@ -1,4 +1,4 @@
-import type { SoftDeletable, Uuid, Versioned } from './common';
+import type { SoftDeletable, Tick, Uuid, Versioned } from './common';
 
 export type ScaleUnit = 'm' | 'km' | 'mi' | 'league' | 'day_walk' | 'custom';
 export const SCALE_UNITS: readonly ScaleUnit[] = ['m', 'km', 'mi', 'league', 'day_walk', 'custom'];
@@ -23,6 +23,22 @@ export interface WorldMap extends Versioned, SoftDeletable {
   scaleUnit: ScaleUnit | null;
   scaleLabel: string | null;
   sortOrder: number;
+}
+
+/**
+ * `public.map_image_versions` — imagem do mapa a partir de um instante (docs/06 › Versões
+ * da imagem no tempo). A imagem de `WorldMap.imageAssetId` vale até a primeira versão; cada
+ * versão vale de `tickStart` até o `tickStart` da seguinte. Único por `(mapId, tickStart)`
+ * entre as que não estão na lixeira.
+ */
+export interface MapImageVersion extends Versioned, SoftDeletable {
+  id: Uuid;
+  worldId: Uuid;
+  mapId: Uuid;
+  /** Nulo se o arquivo foi apagado (`on delete set null`). */
+  imageAssetId: Uuid | null;
+  tickStart: Tick;
+  createdBy: Uuid | null;
 }
 
 /** Vértice `[x, y]` em coordenadas do mapa. */

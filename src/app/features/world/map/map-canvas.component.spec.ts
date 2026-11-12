@@ -28,7 +28,7 @@ const map: WorldMap = {
 };
 
 function scene(links: MapScene['links'] = []): MapScene {
-  return { map, tokens: [], keyframes: [], annotations: [], links };
+  return { map, tokens: [], keyframes: [], annotations: [], links, imageVersions: [] };
 }
 
 @Component({
