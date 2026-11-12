@@ -6,6 +6,7 @@ import type { Point } from '@domain/geometry';
 import type { EventMarkerInput, LayerId, ToolId } from '@engine/map-engine';
 import { fakeMapEngineFactory } from '@engine/testing/fake-map-engine';
 import { MapCanvasComponent, type CameraChange } from './map-canvas.component';
+import { ENTITY_DRAG_TYPE, EntityDrag } from './entity-drag';
 import { MAP_ENGINE_FACTORY } from './map-engine.token';
 
 const map: WorldMap = {
@@ -47,6 +48,12 @@ function scene(links: MapScene['links'] = []): MapScene {
       (openMap)="opened.push($event)"
       (pointPicked)="picked.push($event)"
       (openEvent)="openedEvents.push($event)"
+      [selection]="selection()"
+      (tokenMoved)="moved.push($event)"
+      (tokenSelected)="selected.push($event)"
+      (tokenOpen)="openedTokens.push($event)"
+      (tokenMenu)="menus.push($event)"
+      (entityDropped)="dropped.push($event)"
     />
   `,
 })
@@ -62,6 +69,22 @@ class HostComponent {
   readonly events = signal<EventMarkerInput[]>([]);
   readonly picked: Point[] = [];
   readonly openedEvents: string[] = [];
+  readonly selection = signal<readonly string[]>([]);
+  readonly moved: unknown[] = [];
+  readonly selected: string[][] = [];
+  readonly openedTokens: string[] = [];
+  readonly menus: unknown[] = [];
+  readonly dropped: { entityId: string; point: Point }[] = [];
+}
+
+/** O jsdom não cria `DragEvent` com `dataTransfer`: monta um evento com os dados do arraste. */
+function dragEvent(type: string, data: Record<string, string>, x = 0, y = 0): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.assign(event, { clientX: x, clientY: y, relatedTarget: null });
+  Object.defineProperty(event, 'dataTransfer', {
+    value: { types: Object.keys(data), getData: (t: string) => data[t] ?? '', dropEffect: 'none' },
+  });
+  return event;
 }
 
 const battle: EventMarkerInput = {
@@ -189,5 +212,53 @@ describe('MapCanvasComponent', () => {
       ) as HTMLButtonElement
     ).click();
     expect(host.openedEvents).toEqual(['e1']);
+  });
+
+  it('turns token events into outputs and passes the selection', async () => {
+    const { engine, fixture, host } = await setUp();
+    engine.events.emit({
+      type: 'token:moved',
+      tokenId: 't1',
+      to: { x: 5, y: 6 },
+      tick: 0,
+      correctPrevious: true,
+    });
+    engine.events.emit({ type: 'token:selected', ids: ['t1', 't2'] });
+    engine.events.emit({ type: 'token:open', tokenId: 't1' });
+    engine.events.emit({ type: 'token:menu', tokenId: 't1', anchor: { x: 1, y: 2 } });
+    expect(host.moved).toEqual([{ tokenId: 't1', to: { x: 5, y: 6 }, correctPrevious: true }]);
+    expect(host.selected).toEqual([['t1', 't2']]);
+    expect(host.openedTokens).toEqual(['t1']);
+    expect(host.menus).toEqual([{ tokenId: 't1', anchor: { x: 1, y: 2 } }]);
+
+    host.selection.set(['t2']);
+    await fixture.whenStable();
+    expect(engine.selection).toEqual(['t2']);
+  });
+
+  it('previews and drops an entity dragged from the explorer', async () => {
+    const { engine, fixture, host } = await setUp();
+    TestBed.inject(EntityDrag).entityId.set('e7');
+    const canvas = fixture.nativeElement.querySelector('[role="application"]') as HTMLElement;
+
+    const over = dragEvent('dragover', { [ENTITY_DRAG_TYPE]: '' }, 40, 50);
+    canvas.dispatchEvent(over);
+    expect(over.defaultPrevented).toBe(true);
+    expect(engine.drop).toEqual({ entityId: 'e7', clientX: 40, clientY: 50 });
+
+    canvas.dispatchEvent(dragEvent('drop', { [ENTITY_DRAG_TYPE]: 'e7' }, 2000, 50));
+    expect(engine.drop).toBeNull();
+    // Fora do mapa (1000 × 500), o ponto fica na borda.
+    expect(host.dropped).toEqual([{ entityId: 'e7', point: { x: 1000, y: 50 } }]);
+    expect(TestBed.inject(EntityDrag).entityId()).toBeNull();
+  });
+
+  it('ignores drags that are not entities', async () => {
+    const { engine, fixture } = await setUp();
+    const canvas = fixture.nativeElement.querySelector('[role="application"]') as HTMLElement;
+    const over = dragEvent('dragover', { Files: '' });
+    canvas.dispatchEvent(over);
+    expect(over.defaultPrevented).toBe(false);
+    expect(engine.drop).toBeNull();
   });
 });

@@ -26,9 +26,11 @@ import {
   type LayerId,
   type MapEngine,
   type MapImageSource,
+  type TokenLook,
   type ToolId,
   type ViewportInsets,
 } from '@engine/map-engine';
+import { ENTITY_DRAG_TYPE, EntityDrag } from './entity-drag';
 import { MAP_ENGINE_FACTORY } from './map-engine.token';
 
 /** Passo das setas, em px de tela (Shift: passo grande). */
@@ -64,6 +66,9 @@ export interface EventHover {
       [attr.aria-label]="text.label(mapName())"
       aria-describedby="wd-map-instructions"
       (keydown)="onKey($event)"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)"
     ></div>
     <p id="wd-map-instructions" class="sr-only">{{ text.instructions }}</p>
     @if (visibleEvents().length > 0) {
@@ -160,6 +165,9 @@ export class MapCanvasComponent {
   /** Eventos do mundo (marcadores) e a janela dos pontuais. */
   readonly events = input<readonly EventMarkerInput[]>([]);
   readonly eventWindow = input<Tick>(0);
+  /** Aparência dos tokens (nome, tipo, cor, retrato) por entidade. */
+  readonly looks = input<readonly TokenLook[]>([]);
+  readonly selection = input<readonly Uuid[]>([]);
 
   readonly cameraChange = output<CameraChange>();
   readonly measure = output<{ points: Point[]; distance: number }>();
@@ -171,6 +179,13 @@ export class MapCanvasComponent {
   readonly pointPicked = output<Point>();
   readonly openEvent = output<Uuid>();
   readonly eventHover = output<EventHover>();
+  /** Fim do arraste de um token (o instante é decidido por quem grava). */
+  readonly tokenMoved = output<{ tokenId: Uuid; to: Point; correctPrevious: boolean }>();
+  readonly tokenSelected = output<Uuid[]>();
+  readonly tokenOpen = output<Uuid>();
+  readonly tokenMenu = output<{ tokenId: Uuid; anchor: Point }>();
+  /** Entidade do Explorar solta no mapa, no ponto do mapa sob o ponteiro. */
+  readonly entityDropped = output<{ entityId: Uuid; point: Point }>();
 
   protected readonly text = MAP_STRINGS.canvas;
   protected readonly eventText = TIME_STRINGS.events.map;
@@ -191,6 +206,7 @@ export class MapCanvasComponent {
   });
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
   private readonly factory = inject(MAP_ENGINE_FACTORY);
+  private readonly drag = inject(EntityDrag);
   private readonly engine = signal<MapEngine | null>(null);
   private loaded: { mapId: Uuid; image: MapImageSource | null } | null = null;
 
@@ -248,6 +264,22 @@ export class MapCanvasComponent {
           case 'event:hover':
             this.eventHover.emit({ eventId: event.eventId, anchor: event.anchor });
             break;
+          case 'token:moved':
+            this.tokenMoved.emit({
+              tokenId: event.tokenId,
+              to: event.to,
+              correctPrevious: event.correctPrevious,
+            });
+            break;
+          case 'token:selected':
+            this.tokenSelected.emit(event.ids);
+            break;
+          case 'token:open':
+            this.tokenOpen.emit(event.tokenId);
+            break;
+          case 'token:menu':
+            this.tokenMenu.emit({ tokenId: event.tokenId, anchor: event.anchor });
+            break;
         }
       });
       // Margens e ferramenta antes da primeira cena: o enquadramento inicial já as considera.
@@ -271,6 +303,8 @@ export class MapCanvasComponent {
     });
     effect(() => this.engine()?.setInsets(this.insets()));
     effect(() => this.engine()?.setTime(this.time()));
+    effect(() => this.engine()?.applyPatch({ type: 'looks', looks: [...this.looks()] }));
+    effect(() => this.engine()?.setSelection([...this.selection()]));
     effect(() => {
       const engine = this.engine();
       const events = [...this.events()];
@@ -303,6 +337,53 @@ export class MapCanvasComponent {
 
   focusMap(): void {
     this.host().nativeElement.focus({ preventScroll: true });
+  }
+
+  /** Centraliza o mapa num token (ex.: "Mostrar no mapa" da ficha). */
+  focusToken(tokenId: Uuid): void {
+    this.engine()?.focus({ tokenId }, true);
+  }
+
+  /** Posição atual do token na tela, em coordenadas da janela (âncora do menu). */
+  tokenAnchor(tokenId: Uuid): Point | null {
+    const engine = this.engine();
+    const at = engine?.tokenPosition(tokenId);
+    return engine && at ? engine.worldToScreen(at) : null;
+  }
+
+  /** Arraste de uma entidade do Explorar: aceita e mostra o fantasma do token. */
+  protected onDragOver(event: DragEvent): void {
+    const transfer = event.dataTransfer;
+    if (!transfer?.types.includes(ENTITY_DRAG_TYPE)) return;
+    event.preventDefault();
+    transfer.dropEffect = 'copy';
+    const entityId = this.drag.entityId();
+    const engine = this.engine();
+    if (entityId && engine && this.scene()) {
+      engine.previewDrop({ entityId, clientX: event.clientX, clientY: event.clientY });
+    }
+  }
+
+  protected onDragLeave(event: DragEvent): void {
+    const to = event.relatedTarget;
+    if (to instanceof Node && this.host().nativeElement.contains(to)) return;
+    this.engine()?.previewDrop(null);
+  }
+
+  protected onDrop(event: DragEvent): void {
+    const entityId = event.dataTransfer?.getData(ENTITY_DRAG_TYPE);
+    const engine = this.engine();
+    const map = this.scene()?.map;
+    engine?.previewDrop(null);
+    this.drag.entityId.set(null);
+    if (!entityId || !engine || !map) return;
+    event.preventDefault();
+    const p = engine.screenToWorld(event.clientX, event.clientY);
+    const point = {
+      x: Math.min(map.width, Math.max(0, p.x)),
+      y: Math.min(map.height, Math.max(0, p.y)),
+    };
+    this.entityDropped.emit({ entityId, point });
   }
 
   protected onKey(event: KeyboardEvent): void {

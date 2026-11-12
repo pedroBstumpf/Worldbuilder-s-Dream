@@ -15,6 +15,7 @@ import {
 } from 'pixi.js';
 import { EventLayer } from '../layers/event-layer';
 import { LinkLayer } from '../layers/link-layer';
+import { loadBitmap } from '../layers/token-faces';
 import { TokenLayer } from '../layers/token-layer';
 import {
   EngineEventBus,
@@ -74,6 +75,10 @@ export class PixiMapEngine implements MapEngine {
 
   private map: WorldMap | null = null;
   private scene: MapScene | null = null;
+  private tick: Tick = 0;
+  private selection: Uuid[] = [];
+  /** Início da seleção por área (ferramenta Selecionar), em coordenadas do mapa. */
+  private marquee: { start: Point; additive: boolean } | null = null;
   private tool: ToolId = 'pan';
   private insets: ViewportInsets = NO_INSETS;
   private readonly clicks = new ClickTracker();
@@ -126,17 +131,29 @@ export class PixiMapEngine implements MapEngine {
       this.layers.set(id, layer);
       viewport.addChild(layer);
     }
-    this.tokens = new TokenLayer(app.renderer, this.palette);
+    this.tokens = new TokenLayer(app.renderer, this.palette, {
+      toWorld: (screen) => this.requireViewport().toWorld(screen.x, screen.y),
+      onMoved: (tokenId, to, alt) =>
+        this.events.emit({
+          type: 'token:moved',
+          tokenId,
+          to: this.clampToMap(to),
+          tick: this.tick,
+          correctPrevious: alt,
+        }),
+      onSelect: (tokenId, additive) => this.selectTokens([tokenId], additive, true),
+      onOpen: (tokenId) => this.events.emit({ type: 'token:open', tokenId }),
+      onMenu: (tokenId, screen) =>
+        this.events.emit({ type: 'token:menu', tokenId, anchor: this.toClient(screen) }),
+    });
     this.layer('tokens').addChild(this.tokens.container);
+    this.layer('labels').addChild(this.tokens.labels);
     const tokens = this.tokens;
     this.eventMarkers = new EventLayer(this.palette, this.options.reducedMotion, {
       locationOf: (entityId) => tokens.positionOfEntity(entityId),
       onOpen: (eventId) => this.events.emit({ type: 'event:open', eventId }),
       onHover: (eventId, at) => {
-        const rect = this.host?.getBoundingClientRect();
-        const anchor = at
-          ? { x: at.x + (rect?.left ?? 0), y: at.y + (rect?.top ?? 0) }
-          : { x: 0, y: 0 };
+        const anchor = at ? this.toClient(at) : { x: 0, y: 0 };
         this.events.emit({ type: 'event:hover', eventId, anchor });
       },
     });
@@ -156,6 +173,9 @@ export class PixiMapEngine implements MapEngine {
     viewport.on('zoomed-end', () => this.emitCamera());
     viewport.on('clicked', (event: ClickedEvent) => this.onClick(event));
     viewport.on('pointermove', (event: FederatedPointerEvent) => this.onPointerMove(event));
+    viewport.on('pointerdown', (event: FederatedPointerEvent) => this.onPointerDown(event));
+    viewport.on('pointerup', (event: FederatedPointerEvent) => this.onPointerUp(event));
+    viewport.on('pointerupoutside', (event: FederatedPointerEvent) => this.onPointerUp(event));
     app.renderer.on('resize', (width: number, height: number) => {
       viewport.resize(width, height);
       this.updateZoomLimits();
@@ -220,6 +240,10 @@ export class PixiMapEngine implements MapEngine {
       this.eventMarkers?.setEvents(patch.events, patch.window);
       return;
     }
+    if (patch.type === 'looks') {
+      this.tokens?.setLooks(patch.looks);
+      return;
+    }
     if (!this.scene) return;
     switch (patch.type) {
       case 'links':
@@ -234,6 +258,7 @@ export class PixiMapEngine implements MapEngine {
   }
 
   setTime(tick: Tick): void {
+    this.tick = tick;
     this.tokens?.setTime(tick);
     // Depois dos tokens: o marcador pode estar no token do local.
     this.eventMarkers?.setTime(tick);
@@ -245,8 +270,12 @@ export class PixiMapEngine implements MapEngine {
     const drawing = tool === 'calibrate' || tool === 'link' || tool === 'place';
     this.links?.setInteractive(!drawing);
     this.eventMarkers?.setInteractive(!drawing);
+    this.tokens?.setInteractive(!drawing);
     if (this.viewport) {
       this.viewport.cursor = drawing ? 'crosshair' : tool === 'pan' ? 'grab' : 'default';
+      // Em Selecionar, o botão esquerdo desenha o retângulo de seleção; o do meio move o mapa.
+      const buttons = tool === 'select' ? 'middle' : 'left-middle';
+      this.viewport.drag({ mouseButtons: buttons, wheel: false });
     }
   }
 
@@ -261,6 +290,7 @@ export class PixiMapEngine implements MapEngine {
   }
 
   cancelTool(): void {
+    this.marquee = null;
     this.calibration.clear();
     this.polygon.clear();
     this.overlay?.clear();
@@ -269,7 +299,18 @@ export class PixiMapEngine implements MapEngine {
   }
 
   setSelection(ids: Uuid[]): void {
+    this.selection = ids;
     this.tokens?.setSelection(ids);
+  }
+
+  previewDrop(drop: { entityId: Uuid; clientX: number; clientY: number } | null): void {
+    if (!this.viewport || !this.map) return;
+    const at = drop ? this.clampToMap(this.screenToWorld(drop.clientX, drop.clientY)) : null;
+    this.tokens?.previewDrop(drop && at ? { entityId: drop.entityId, at } : null);
+  }
+
+  tokenPosition(tokenId: Uuid): Point | null {
+    return this.tokens?.positionOf(tokenId) ?? null;
   }
 
   setLayerVisible(layer: LayerId, visible: boolean): void {
@@ -307,7 +348,8 @@ export class PixiMapEngine implements MapEngine {
   focus(target: { tokenId?: Uuid; point?: Point; zoom?: number }, animate = true): void {
     const viewport = this.viewport;
     if (!viewport) return;
-    const point = target.point ?? this.camera.center;
+    const tokenPoint = target.tokenId ? this.tokens?.positionOf(target.tokenId) : null;
+    const point = target.point ?? tokenPoint ?? this.camera.center;
     const zoom = clampZoom(target.zoom ?? viewport.scale.x, this.limits());
     const center = screenCenterFor(point, zoom, this.insets);
     if (animate && !this.options.reducedMotion) {
@@ -375,10 +417,54 @@ export class PixiMapEngine implements MapEngine {
       const link = this.scene?.links.find((l) => pointInPolygon(world, l.polygon));
       if (link)
         this.events.emit({ type: 'link:open', linkId: link.id, targetMapId: link.targetMapId });
+      return;
     }
+    // Clique no fundo (fora dos tokens) limpa a seleção.
+    if (this.selection.length > 0) this.selectTokens([], false, false);
+  }
+
+  /** Seleção pedida pelo usuário; o app decide e devolve com `setSelection`. */
+  private selectTokens(ids: Uuid[], additive: boolean, toggle: boolean): void {
+    let next = ids;
+    if (additive) {
+      const current = new Set(this.selection);
+      for (const id of ids) {
+        if (toggle && current.has(id)) current.delete(id);
+        else current.add(id);
+      }
+      next = [...current];
+    }
+    this.events.emit({ type: 'token:selected', ids: next });
+  }
+
+  /** Selecionar: o botão esquerdo no fundo começa o retângulo de seleção. */
+  private onPointerDown(event: FederatedPointerEvent): void {
+    if (this.tool !== 'select' || event.button !== 0) return;
+    const p = this.requireViewport().toWorld(event.global.x, event.global.y);
+    this.marquee = { start: { x: p.x, y: p.y }, additive: event.shiftKey };
+  }
+
+  private onPointerUp(event: FederatedPointerEvent): void {
+    const marquee = this.marquee;
+    if (!marquee) return;
+    this.marquee = null;
+    this.overlay?.clear();
+    const p = this.requireViewport().toWorld(event.global.x, event.global.y);
+    const end = { x: p.x, y: p.y };
+    const size = Math.hypot(end.x - marquee.start.x, end.y - marquee.start.y) * this.camera.zoom;
+    // Um clique sem arrastar fica com o `clicked` (limpa a seleção).
+    if (size < 4) return;
+    this.selectTokens(this.tokens?.tokensIn(marquee.start, end) ?? [], marquee.additive, false);
   }
 
   private onPointerMove(event: FederatedPointerEvent): void {
+    if (this.marquee) {
+      const p = this.requireViewport().toWorld(event.global.x, event.global.y);
+      const a = this.marquee.start;
+      const corners = [a, { x: p.x, y: a.y }, { x: p.x, y: p.y }, { x: a.x, y: p.y }];
+      this.overlay?.show(corners, true);
+      return;
+    }
     if (this.tool !== 'link' && this.tool !== 'calibrate') return;
     const p = this.requireViewport().toWorld(event.global.x, event.global.y);
     const drafting = this.tool === 'link' ? this.polygon : this.calibration;
@@ -410,6 +496,12 @@ export class PixiMapEngine implements MapEngine {
     const eventTokens = tokens.filter((token) => token.eventId !== null);
     this.tokens?.setTokens(entityTokens, keyframes);
     this.eventMarkers?.setTokens(eventTokens, keyframes);
+  }
+
+  /** Coordenadas do canvas → da janela (âncora de popovers e menus). */
+  private toClient(screen: Point): Point {
+    const rect = this.host?.getBoundingClientRect();
+    return { x: screen.x + (rect?.left ?? 0), y: screen.y + (rect?.top ?? 0) };
   }
 
   private clampToMap(point: Point): Point {
@@ -486,11 +578,4 @@ export class PixiMapEngine implements MapEngine {
     if (resource instanceof ImageBitmap) resource.close();
     this.background = null;
   }
-}
-
-/** Baixa a imagem (object URL local ou URL assinada) e decodifica fora da thread principal. */
-async function loadBitmap(url: string): Promise<ImageBitmap> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`imagem do mapa indisponível (${response.status})`);
-  return createImageBitmap(await response.blob());
 }

@@ -40,7 +40,13 @@ import { eventColor } from '@domain/events';
 import { isTick, type EntityKind, type PolygonVertex, type Uuid } from '@domain/models';
 import { MapImageError, readMapImage, type ProcessedMapImage } from '@engine/import/read-map-image';
 import { isEventActive, suggestSpeed, type PlaySpeed } from '@domain/timeline';
-import type { EventMarkerInput, LayerId, ToolId, ViewportInsets } from '@engine/map-engine';
+import type {
+  EventMarkerInput,
+  LayerId,
+  TokenLook,
+  ToolId,
+  ViewportInsets,
+} from '@engine/map-engine';
 import { DemoBadgeComponent } from '@shared/ui/demo-badge/demo-badge.component';
 import { DialogService } from '@shared/ui/dialog/dialog.service';
 import { IconButtonComponent } from '@shared/ui/icon-button/icon-button.component';
@@ -66,6 +72,7 @@ import { MapImportAreaComponent } from '../import/map-import-area.component';
 import { MapImportDirective } from '../import/map-import.directive';
 import { pickImageFile } from '../import/pick-image-file';
 import { MapCanvasComponent, type CameraChange } from '../map/map-canvas.component';
+import { TokenActions } from '../map/token-actions';
 import {
   LinkTargetDialogComponent,
   RenameMapDialogComponent,
@@ -142,7 +149,15 @@ const ARROW_KEYS_OWNERS =
     MapTitleComponent,
     TimelineBarComponent,
   ],
-  providers: [WorldStore, HistoryStore, MapStore, EntityStore, EventStore, TimelineStore],
+  providers: [
+    WorldStore,
+    HistoryStore,
+    MapStore,
+    EntityStore,
+    EventStore,
+    TimelineStore,
+    TokenActions,
+  ],
   host: { '[class.has-timeline]': 'store.activeMap() !== null' },
   template: `
     <main
@@ -167,6 +182,12 @@ const ARROW_KEYS_OWNERS =
           [time]="timeline.currentTick()"
           [events]="eventMarks()"
           [eventWindow]="timeline.eventWindow()"
+          [looks]="tokenLooks()"
+          [selection]="mapStore.selection()"
+          (tokenMoved)="tokens.move($event.tokenId, $event.to, $event.correctPrevious)"
+          (tokenSelected)="mapStore.select($event)"
+          (tokenOpen)="openToken($event)"
+          (entityDropped)="dropEntity($event.entityId, $event.point)"
           (cameraChange)="saveCamera($event)"
           (pointPicked)="onPointPicked($event)"
           (openEvent)="openEvent($event)"
@@ -526,6 +547,7 @@ export default class WorldShellPage {
   protected readonly store = inject(WorldStore);
   protected readonly mapStore = inject(MapStore);
   private readonly history = inject(HistoryStore);
+  protected readonly tokens = inject(TokenActions);
   protected readonly entities = inject(EntityStore);
   protected readonly timeline = inject(TimelineStore);
   protected readonly events = inject(EventStore);
@@ -569,6 +591,18 @@ export default class WorldShellPage {
       locationEntityId: event.locationEntityId,
     })),
   );
+
+  /** Aparência dos tokens: nome, tipo, cor e retrato (já resolvido) de cada entidade. */
+  protected readonly tokenLooks = computed<TokenLook[]>(() => {
+    const portraits = this.entities.portraits();
+    return this.entities.entities().map((entity) => ({
+      entityId: entity.id,
+      name: entity.name,
+      kind: entity.kind,
+      color: entity.color,
+      portraitUrl: entity.portraitAssetId ? (portraits[entity.portraitAssetId] ?? null) : null,
+    }));
+  });
 
   /** Evento a marcar no mapa com a ferramenta `place`. */
   private readonly placingId = signal<Uuid | null>(null);
@@ -646,6 +680,7 @@ export default class WorldShellPage {
     void this.prefs.load();
     afterNextRender(() => void this.load());
     this.registerShortcuts();
+    this.loadTokenPortraits();
 
     // Mapa ativo: carrega a cena e reflete o id na URL.
     effect(() => {
@@ -1103,6 +1138,19 @@ export default class WorldShellPage {
     this.openEvent(id);
   }
 
+  /** Entidade solta do Explorar no mapa: cria o token (ou a posição) e seleciona. */
+  protected async dropEntity(entityId: Uuid, point: Point): Promise<void> {
+    await this.tokens.place(entityId, point);
+    const token = this.mapStore.tokenOfEntity(entityId);
+    if (token) this.mapStore.select([token.id]);
+  }
+
+  /** Duplo clique no token: abre a ficha da entidade. */
+  protected openToken(tokenId: Uuid): void {
+    const token = this.mapStore.scene()?.tokens.find((t) => t.id === tokenId);
+    if (token?.entityId) this.openEntity(token.entityId);
+  }
+
   /** Abre a ficha (do Explorar, da paleta, de uma menção ou citação). */
   protected openEntity(id: Uuid): void {
     const entity = this.entities.byId().get(id);
@@ -1344,6 +1392,18 @@ export default class WorldShellPage {
     if (value === null) params.delete(name);
     else params.set(name, value);
     this.location.replaceState(path, params.toString());
+  }
+
+  /** Retratos dos tokens do mapa aberto são resolvidos uma vez (como no Explorar). */
+  private loadTokenPortraits(): void {
+    effect(() => {
+      const ids = new Set((this.mapStore.scene()?.tokens ?? []).map((token) => token.entityId));
+      for (const entity of this.entities.entities()) {
+        if (ids.has(entity.id) && entity.portraitAssetId) {
+          void this.entities.loadPortrait(entity.portraitAssetId);
+        }
+      }
+    });
   }
 
   private registerShortcuts(): void {

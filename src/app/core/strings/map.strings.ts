@@ -126,6 +126,17 @@ export const MAP_STRINGS = {
     expand: 'Mostrar Explorar (])',
     resize: 'Largura do Explorar',
   },
+  /** Tokens de entidade no mapa (M4). Na interface, keyframes são "posições". */
+  tokens: {
+    placed: (name: string, date: string) => `${name} entrou no mapa em ${date}.`,
+    moved: (name: string, date: string) => `Posição de ${name} gravada em ${date}.`,
+    hidden: (name: string, date: string) => `${name} sai do mapa em ${date}.`,
+    removed: (name: string) => `Token de ${name} removido deste mapa.`,
+    keyframeRemoved: (date: string) => `Posição de ${date} removida.`,
+    interpolation: (mode: string) => `Movimento: ${mode}.`,
+    failed: 'Não foi possível gravar a mudança no mapa. O mapa voltou ao que está gravado.',
+    unnamed: 'Sem nome',
+  },
   /** Desfazer e refazer (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z). */
   history: {
     labels: {
