@@ -2,7 +2,8 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { WorldMap } from '@domain/models';
 import type { MapScene } from '@domain/ports';
-import type { LayerId, ToolId } from '@engine/map-engine';
+import type { Point } from '@domain/geometry';
+import type { EventMarkerInput, LayerId, ToolId } from '@engine/map-engine';
 import { fakeMapEngineFactory } from '@engine/testing/fake-map-engine';
 import { MapCanvasComponent, type CameraChange } from './map-canvas.component';
 import { MAP_ENGINE_FACTORY } from './map-engine.token';
@@ -39,8 +40,13 @@ function scene(links: MapScene['links'] = []): MapScene {
       [hiddenLayers]="hidden()"
       [savedCamera]="saved"
       [mapNames]="{ m2: 'Porto' }"
+      [time]="time()"
+      [events]="events()"
+      [eventWindow]="0"
       (cameraChange)="cameras.push($event)"
       (openMap)="opened.push($event)"
+      (pointPicked)="picked.push($event)"
+      (openEvent)="openedEvents.push($event)"
     />
   `,
 })
@@ -52,7 +58,20 @@ class HostComponent {
   readonly saved = (id: string) => (id === 'm1' ? { x: 10, y: 20, zoom: 2 } : null);
   readonly cameras: CameraChange[] = [];
   readonly opened: string[] = [];
+  readonly time = signal(0);
+  readonly events = signal<EventMarkerInput[]>([]);
+  readonly picked: Point[] = [];
+  readonly openedEvents: string[] = [];
 }
+
+const battle: EventMarkerInput = {
+  id: 'e1',
+  title: 'Batalha do Vau',
+  tickStart: 100,
+  tickEnd: 200,
+  color: null,
+  locationEntityId: null,
+};
 
 describe('MapCanvasComponent', () => {
   async function setUp() {
@@ -86,7 +105,7 @@ describe('MapCanvasComponent', () => {
     await fixture.whenStable();
 
     expect(engine.fits).toBe(fits);
-    expect(engine.patches.at(-1)).toMatchObject({ type: 'links' });
+    expect(engine.patches.map((p) => p.type).slice(-2)).toEqual(['links', 'tokens']);
     expect(engine.tool).toBe('link');
     expect([...engine.hiddenLayers]).toEqual(['tokens']);
     const button = fixture.nativeElement.querySelector('nav button') as HTMLButtonElement;
@@ -116,5 +135,59 @@ describe('MapCanvasComponent', () => {
     const { engine, fixture } = await setUp();
     fixture.destroy();
     expect(engine.destroyed).toBe(true);
+  });
+
+  it('passes the time and the events to the engine', async () => {
+    const { engine, fixture, host } = await setUp();
+    host.time.set(150);
+    host.events.set([battle]);
+    await fixture.whenStable();
+    expect(engine.tick).toBe(150);
+    expect(engine.patches.at(-1)).toEqual({ type: 'events', events: [battle], window: 0 });
+  });
+
+  it('turns picked points and marker clicks into outputs', async () => {
+    const { engine, host } = await setUp();
+    engine.events.emit({ type: 'point:picked', point: { x: 3, y: 4 } });
+    engine.events.emit({ type: 'event:open', eventId: 'e1' });
+    expect(host.picked).toEqual([{ x: 3, y: 4 }]);
+    expect(host.openedEvents).toEqual(['e1']);
+  });
+
+  it('lists the events visible on this map as buttons', async () => {
+    const { fixture, host } = await setUp();
+    const placed: MapScene = {
+      ...scene(),
+      tokens: [
+        {
+          id: 't1',
+          worldId: 'w',
+          mapId: 'm1',
+          entityId: null,
+          eventId: 'e1',
+          size: 1,
+          style: {},
+          createdAt: '',
+        },
+      ],
+    };
+    host.scene.set(placed);
+    host.events.set([battle]);
+    host.time.set(50);
+    await fixture.whenStable();
+    const buttons = () =>
+      Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLElement>).map(
+        (b) => b.textContent?.trim(),
+      );
+    expect(buttons()).not.toContain('Abrir evento: Batalha do Vau');
+    host.time.set(150);
+    await fixture.whenStable();
+    expect(buttons()).toContain('Abrir evento: Batalha do Vau');
+    (
+      fixture.nativeElement.querySelector(
+        'nav[aria-label="Eventos visíveis no mapa"] button',
+      ) as HTMLButtonElement
+    ).click();
+    expect(host.openedEvents).toEqual(['e1']);
   });
 });

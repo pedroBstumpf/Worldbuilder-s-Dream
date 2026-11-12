@@ -1,5 +1,5 @@
 import { pointInPolygon, type Point } from '@domain/geometry';
-import type { Tick, Uuid, WorldMap } from '@domain/models';
+import type { MapToken, Tick, TokenKeyframe, Uuid, WorldMap } from '@domain/models';
 import type { MapScene } from '@domain/ports';
 import { Viewport } from 'pixi-viewport';
 import {
@@ -13,6 +13,7 @@ import {
   type FederatedPointerEvent,
   type PointData,
 } from 'pixi.js';
+import { EventLayer } from '../layers/event-layer';
 import { LinkLayer } from '../layers/link-layer';
 import { TokenLayer } from '../layers/token-layer';
 import {
@@ -67,6 +68,7 @@ export class PixiMapEngine implements MapEngine {
   private readonly layers = new Map<LayerId, Container>();
   private background: Sprite | null = null;
   private tokens: TokenLayer | null = null;
+  private eventMarkers: EventLayer | null = null;
   private links: LinkLayer | null = null;
   private overlay: ToolOverlay | null = null;
 
@@ -126,6 +128,20 @@ export class PixiMapEngine implements MapEngine {
     }
     this.tokens = new TokenLayer(app.renderer, this.palette);
     this.layer('tokens').addChild(this.tokens.container);
+    const tokens = this.tokens;
+    this.eventMarkers = new EventLayer(this.palette, this.options.reducedMotion, {
+      locationOf: (entityId) => tokens.positionOfEntity(entityId),
+      onOpen: (eventId) => this.events.emit({ type: 'event:open', eventId }),
+      onHover: (eventId, at) => {
+        const rect = this.host?.getBoundingClientRect();
+        const anchor = at
+          ? { x: at.x + (rect?.left ?? 0), y: at.y + (rect?.top ?? 0) }
+          : { x: 0, y: 0 };
+        this.events.emit({ type: 'event:hover', eventId, anchor });
+      },
+    });
+    this.layer('tokens').addChild(this.eventMarkers.container);
+    app.ticker.add((ticker) => this.eventMarkers?.animate(ticker.deltaMS));
     this.links = new LinkLayer(this.palette, (link) =>
       this.events.emit({ type: 'link:open', linkId: link.id, targetMapId: link.targetMapId }),
     );
@@ -151,6 +167,7 @@ export class PixiMapEngine implements MapEngine {
     this.destroyed = true;
     this.events.clear();
     this.tokens?.destroy();
+    this.eventMarkers?.destroy();
     this.links?.destroy();
     this.destroyBackground();
     // O viewport sai antes da aplicação: destruída primeiro, ela leva o ticker junto e o
@@ -192,37 +209,53 @@ export class PixiMapEngine implements MapEngine {
     }
     viewport.resize(viewport.screenWidth, viewport.screenHeight, scene.map.width, scene.map.height);
     this.links?.setLinks(scene.links);
-    this.tokens?.setTokens(scene.tokens, scene.keyframes);
+    this.setTokens(scene.tokens, scene.keyframes);
     this.updateZoomLimits();
     this.fitToMap(false);
   }
 
   applyPatch(patch: ScenePatch): void {
+    // Os eventos são do mundo, não da cena: valem antes e depois de trocar de mapa.
+    if (patch.type === 'events') {
+      this.eventMarkers?.setEvents(patch.events, patch.window);
+      return;
+    }
     if (!this.scene) return;
-    if (patch.type === 'links') {
-      this.scene = { ...this.scene, links: patch.links };
-      this.links?.setLinks(patch.links);
-    } else {
-      this.scene = { ...this.scene, tokens: patch.tokens, keyframes: patch.keyframes };
-      this.tokens?.setTokens(patch.tokens, patch.keyframes);
+    switch (patch.type) {
+      case 'links':
+        this.scene = { ...this.scene, links: patch.links };
+        this.links?.setLinks(patch.links);
+        break;
+      case 'tokens':
+        this.scene = { ...this.scene, tokens: patch.tokens, keyframes: patch.keyframes };
+        this.setTokens(patch.tokens, patch.keyframes);
+        break;
     }
   }
 
   setTime(tick: Tick): void {
     this.tokens?.setTime(tick);
+    // Depois dos tokens: o marcador pode estar no token do local.
+    this.eventMarkers?.setTime(tick);
   }
 
   setTool(tool: ToolId): void {
     if (tool !== this.tool) this.cancelTool();
     this.tool = tool;
-    const drawing = tool === 'calibrate' || tool === 'link';
+    const drawing = tool === 'calibrate' || tool === 'link' || tool === 'place';
     this.links?.setInteractive(!drawing);
+    this.eventMarkers?.setInteractive(!drawing);
     if (this.viewport) {
       this.viewport.cursor = drawing ? 'crosshair' : tool === 'pan' ? 'grab' : 'default';
     }
   }
 
   commitTool(): void {
+    if (this.tool === 'place') {
+      // Teclado: Enter marca no centro da área visível.
+      this.events.emit({ type: 'point:picked', point: this.clampToMap(this.camera.center) });
+      return;
+    }
     if (this.tool !== 'link') return;
     this.closePolygon();
   }
@@ -316,6 +349,10 @@ export class PixiMapEngine implements MapEngine {
   private onClick(event: ClickedEvent): void {
     const world = { x: event.world.x, y: event.world.y };
     const isDouble = this.clicks.click({ x: event.screen.x, y: event.screen.y }, performance.now());
+    if (this.tool === 'place') {
+      this.events.emit({ type: 'point:picked', point: this.clampToMap(world) });
+      return;
+    }
     if (this.tool === 'calibrate') {
       const measure = this.calibration.add(world);
       this.overlay?.show(this.calibration.vertices, false);
@@ -367,9 +404,27 @@ export class PixiMapEngine implements MapEngine {
     this.events.emit({ type: 'tool:progress', tool: this.tool, points });
   }
 
+  /** Separa tokens de entidade (camada de tokens) e de evento (marcadores). */
+  private setTokens(tokens: readonly MapToken[], keyframes: readonly TokenKeyframe[]): void {
+    const entityTokens = tokens.filter((token) => token.entityId !== null);
+    const eventTokens = tokens.filter((token) => token.eventId !== null);
+    this.tokens?.setTokens(entityTokens, keyframes);
+    this.eventMarkers?.setTokens(eventTokens, keyframes);
+  }
+
+  private clampToMap(point: Point): Point {
+    const map = this.map;
+    if (!map) return point;
+    return {
+      x: Math.min(map.width, Math.max(0, point.x)),
+      y: Math.min(map.height, Math.max(0, point.y)),
+    };
+  }
+
   private onZoom(): void {
     const zoom = this.viewport?.scale.x ?? 1;
     this.tokens?.setZoom(zoom);
+    this.eventMarkers?.setZoom(zoom);
     this.links?.setZoom(zoom);
     this.overlay?.setZoom(zoom);
     this.keepMapInView();

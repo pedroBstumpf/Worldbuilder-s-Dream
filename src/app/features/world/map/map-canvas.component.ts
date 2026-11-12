@@ -1,6 +1,7 @@
 import {
   afterNextRender,
   Component,
+  computed,
   DestroyRef,
   type ElementRef,
   effect,
@@ -13,12 +14,15 @@ import {
 } from '@angular/core';
 import type { SavedCamera } from '@core/prefs/ui-prefs';
 import { MAP_STRINGS } from '@core/strings/map.strings';
+import { TIME_STRINGS } from '@core/strings/time.strings';
 import type { Point } from '@domain/geometry';
 import type { PolygonVertex, Tick, Uuid } from '@domain/models';
 import type { MapScene } from '@domain/ports';
+import { isEventActive } from '@domain/timeline';
 import {
   LAYER_IDS,
   type Camera,
+  type EventMarkerInput,
   type LayerId,
   type MapEngine,
   type MapImageSource,
@@ -34,6 +38,12 @@ const ZOOM_STEP = 1.25;
 export interface CameraChange {
   mapId: Uuid;
   camera: Camera;
+}
+
+/** Ponteiro sobre um marcador de evento (`eventId` nulo ao sair), em coordenadas da janela. */
+export interface EventHover {
+  eventId: Uuid | null;
+  anchor: Point;
 }
 
 /**
@@ -56,6 +66,19 @@ export interface CameraChange {
       (keydown)="onKey($event)"
     ></div>
     <p id="wd-map-instructions" class="sr-only">{{ text.instructions }}</p>
+    @if (visibleEvents().length > 0) {
+      <nav class="links" [attr.aria-label]="eventText.list">
+        <ul>
+          @for (event of visibleEvents(); track event.id) {
+            <li>
+              <button type="button" class="link wd-focus" (click)="openEvent.emit(event.id)">
+                {{ eventText.open(event.title) }}
+              </button>
+            </li>
+          }
+        </ul>
+      </nav>
+    }
     @if (links().length > 0) {
       <nav class="links" [attr.aria-label]="text.links">
         <ul>
@@ -134,6 +157,9 @@ export class MapCanvasComponent {
   readonly mapNames = input<Record<Uuid, string>>({});
   /** Instante da linha do tempo (docs/06 §1: `engine.setTime(timeline.currentTick())`). */
   readonly time = input<Tick>(0);
+  /** Eventos do mundo (marcadores) e a janela dos pontuais. */
+  readonly events = input<readonly EventMarkerInput[]>([]);
+  readonly eventWindow = input<Tick>(0);
 
   readonly cameraChange = output<CameraChange>();
   readonly measure = output<{ points: Point[]; distance: number }>();
@@ -141,8 +167,28 @@ export class MapCanvasComponent {
   readonly openMap = output<Uuid>();
   readonly toolProgress = output<number>();
   readonly loadFailed = output();
+  /** A ferramenta `place` escolheu um ponto. */
+  readonly pointPicked = output<Point>();
+  readonly openEvent = output<Uuid>();
+  readonly eventHover = output<EventHover>();
 
   protected readonly text = MAP_STRINGS.canvas;
+  protected readonly eventText = TIME_STRINGS.events.map;
+
+  /** Eventos com marcador neste mapa agora (também como botões, para teclado e leitor). */
+  protected readonly visibleEvents = computed(() => {
+    const tokens = this.scene()?.tokens ?? [];
+    const placed = new Set(tokens.map((token) => token.eventId).filter((id) => id !== null));
+    const locations = new Set(tokens.map((token) => token.entityId).filter((id) => id !== null));
+    const tick = this.time();
+    const window = this.eventWindow();
+    return this.events().filter(
+      (event) =>
+        isEventActive(event, tick, window) &&
+        (placed.has(event.id) ||
+          (event.locationEntityId !== null && locations.has(event.locationEntityId))),
+    );
+  });
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
   private readonly factory = inject(MAP_ENGINE_FACTORY);
   private readonly engine = signal<MapEngine | null>(null);
@@ -193,6 +239,15 @@ export class MapCanvasComponent {
           case 'tool:progress':
             this.toolProgress.emit(event.points);
             break;
+          case 'point:picked':
+            this.pointPicked.emit(event.point);
+            break;
+          case 'event:open':
+            this.openEvent.emit(event.eventId);
+            break;
+          case 'event:hover':
+            this.eventHover.emit({ eventId: event.eventId, anchor: event.anchor });
+            break;
         }
       });
       // Margens e ferramenta antes da primeira cena: o enquadramento inicial já as considera.
@@ -216,6 +271,12 @@ export class MapCanvasComponent {
     });
     effect(() => this.engine()?.setInsets(this.insets()));
     effect(() => this.engine()?.setTime(this.time()));
+    effect(() => {
+      const engine = this.engine();
+      const events = [...this.events()];
+      const window = this.eventWindow();
+      engine?.applyPatch({ type: 'events', events, window });
+    });
   }
 
   /** Comandos das barras (enquadrar, zoom) e do teclado. */
@@ -233,6 +294,11 @@ export class MapCanvasComponent {
 
   cancelTool(): void {
     this.engine()?.cancelTool();
+  }
+
+  /** Centraliza o mapa num ponto (ex.: "Mostrar no mapa" de um evento). */
+  focusPoint(point: Point): void {
+    this.engine()?.focus({ point }, true);
   }
 
   focusMap(): void {
@@ -265,6 +331,7 @@ export class MapCanvasComponent {
     const same = this.loaded?.mapId === scene.map.id && this.loaded.image === image;
     if (same) {
       engine.applyPatch({ type: 'links', links: scene.links });
+      engine.applyPatch({ type: 'tokens', tokens: scene.tokens, keyframes: scene.keyframes });
       return;
     }
     this.loaded = { mapId: scene.map.id, image };
