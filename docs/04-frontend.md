@@ -122,7 +122,7 @@ Acompanhar o **Angular Aria** (componentes acessíveis sem estilo do próprio An
 | `WorldStore` | rota `w/:worldId` | mundo, calendário, faixa do mundo, mapas (árvore, mapa ativo, importação e envio em segundo plano); depois membros, Docs |
 | `EntityStore` | rota `w/:worldId` | entidades do mundo, ficha aberta (`?sel=`), retratos, status de gravação e o índice de busca (`WorldSearch`, que inclui os eventos) |
 | `EventStore` | rota `w/:worldId` | eventos da linha do tempo, ficha do evento aberta (também em `?sel=`), status de gravação |
-| `MapStore` | rota `w/:worldId` | cena do mapa ativo (links, pontos dos eventos, tokens e keyframes; anotações no M5) e seleção de tokens. Toda edição é um `SceneChange` (o que pôr e o que remover, `domain/maps`): aplicada na hora, gravada e registrada no `HistoryStore` com a inversa; se a gravação falha, desfaz o que passou e relê a cena |
+| `MapStore` | rota `w/:worldId` | cena do mapa ativo (links, pontos dos eventos, tokens, keyframes e anotações) e seleção de tokens. Anotações são gravadas com a `version` que a cena guarda (o repositório devolve a nova). Toda edição é um `SceneChange` (o que pôr e o que remover, `domain/maps`): aplicada na hora, gravada e registrada no `HistoryStore` com a inversa; se a gravação falha, desfaz o que passou e relê a cena |
 | `TimelineStore` | rota `w/:worldId` | `currentTick`, faixa visível, zoom, `isPlaying`, velocidade, repetição |
 | `ToolStore` | rota `w/:worldId` | ferramenta ativa e opções |
 | `HistoryStore` | rota `w/:worldId` | desfazer/refazer das edições do mapa (padrão Command, até 100): edições, desfazer e refazer rodam em fila; esquece tudo ao trocar de mapa. `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z` e `Ctrl+Y` anunciam o que foi desfeito |
