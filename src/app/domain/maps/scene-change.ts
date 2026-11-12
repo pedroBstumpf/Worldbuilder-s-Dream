@@ -1,3 +1,4 @@
+import type { MapAnnotation } from '../models/annotation';
 import type { Uuid } from '../models/common';
 import type { MapLink } from '../models/map';
 import type { MapToken, TokenKeyframe } from '../models/token';
@@ -14,6 +15,8 @@ export interface SceneChange {
   readonly removeKeyframes?: readonly Uuid[];
   readonly putLinks?: readonly MapLink[];
   readonly removeLinks?: readonly Uuid[];
+  readonly putAnnotations?: readonly MapAnnotation[];
+  readonly removeAnnotations?: readonly Uuid[];
 }
 
 /** A parte da cena (`MapScene`) que as edições tocam. */
@@ -21,6 +24,7 @@ export interface SceneContent {
   readonly tokens: readonly MapToken[];
   readonly keyframes: readonly TokenKeyframe[];
   readonly links: readonly MapLink[];
+  readonly annotations: readonly MapAnnotation[];
 }
 
 /** Keyframe que `put` substitui: mesmo id ou mesmo `(tokenId, tick)` (upsert do banco). */
@@ -62,7 +66,12 @@ export function applySceneChange<T extends SceneContent>(scene: T, change: Scene
     scene.links.filter((l) => !removedLinks.has(l.id)),
     change.putLinks ?? [],
   );
-  return { ...scene, tokens, keyframes, links };
+  const removedAnnotations = new Set(change.removeAnnotations ?? []);
+  const annotations = upsert(
+    scene.annotations.filter((a) => !removedAnnotations.has(a.id)),
+    change.putAnnotations ?? [],
+  );
+  return { ...scene, tokens, keyframes, links, annotations };
 }
 
 /** Edição que desfaz `change`, calculada a partir da cena **antes** de aplicá-la. */
@@ -73,6 +82,8 @@ export function invertSceneChange(scene: SceneContent, change: SceneChange): Sce
   const removeKeyframes: Uuid[] = [];
   const putLinks: MapLink[] = [];
   const removeLinks: Uuid[] = [];
+  const putAnnotations: MapAnnotation[] = [];
+  const removeAnnotations: Uuid[] = [];
 
   for (const token of change.putTokens ?? []) {
     const old = scene.tokens.find((t) => t.id === token.id);
@@ -103,6 +114,15 @@ export function invertSceneChange(scene: SceneContent, change: SceneChange): Sce
     const old = scene.links.find((l) => l.id === id);
     if (old) putLinks.push(old);
   }
+  for (const annotation of change.putAnnotations ?? []) {
+    const old = scene.annotations.find((a) => a.id === annotation.id);
+    if (old) putAnnotations.push(old);
+    else removeAnnotations.push(annotation.id);
+  }
+  for (const id of change.removeAnnotations ?? []) {
+    const old = scene.annotations.find((a) => a.id === id);
+    if (old) putAnnotations.push(old);
+  }
 
   return {
     putTokens,
@@ -111,6 +131,8 @@ export function invertSceneChange(scene: SceneContent, change: SceneChange): Sce
     removeKeyframes,
     putLinks,
     removeLinks,
+    putAnnotations,
+    removeAnnotations,
   };
 }
 
