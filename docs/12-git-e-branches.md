@@ -213,7 +213,7 @@ Uma branch por marco do `docs/10`. Cada tarefa entrega telas reais do app (sem p
 | [x] | F1-04 | `feat/f1-04-tokens` | **M4 · Tokens**: arrastar do Explorar para o mapa, tokens, keyframes, interpolação, lista acessível; desfazer/refazer (`HistoryStore`), rastro de movimento | 04, 06 §3, §6 |
 | [x] | F1-05 | `feat/f1-05-map-tools` | **M5 · Ferramentas**: marcar ponto (pino), régua, pincel (linha contínua ou pontilhada, cores), borracha, região, rótulo, validade temporal, camadas; pino, pincel e borracha ocupam na barra esquerda o lugar dos antigos botões de zoom | 06 §5 |
 | [x] | F1-08 | `feat/f1-08-map-image-versions` | **M5 · Versões do mapa no tempo** (depois da F1-05, antes da F1-06): `map_image_versions` no domínio, nas portas e no IndexedDB; terceira opção ao soltar uma imagem ("Nova versão a partir de…"); painel "Versões da imagem" no seletor do título; marcadores no trilho; troca de textura com fade cruzado e no máximo duas texturas carregadas | 06 §0, §1, 07 |
-| [ ] | F1-06 | `feat/f1-06-library-data` | **M6/M7 · Biblioteca e dados**: renomear, duplicar, arquivar, lixeira; exportar/importar mundo em JSON (formato do `export-world`) | 01, 05, 07 |
+| [x] | F1-06 | `feat/f1-06-library-data` | **M6/M7 · Biblioteca e dados**: renomear, duplicar, arquivar, lixeira; exportar/importar mundo em JSON (formato do `export-world`) | 01, 05, 07 |
 | [ ] | F1-07 | `test/f1-07-demo-e2e` | Jornadas e2e 1 e 2, axe, medição dos RNF. **Marco: demo para o cliente** (tag `v0.1.0-demo`) | 01, 03 |
 
 ### Fase 2 — Back-end e banco
