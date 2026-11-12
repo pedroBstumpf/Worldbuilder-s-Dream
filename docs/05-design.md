@@ -345,8 +345,8 @@ Os componentes são **portados para Angular** (standalone, signals; CSS, Web Ani
 Todo componente portado: fica em `shared/motion/`, respeita movimento reduzido e a preferência do livro, e não carrega nada de CDN.
 
 ## Padrões de UI específicos
-- **Token de personagem**: retrato circular com anel dourado (2 px); nome em rótulo de pergaminho embaixo (zoom ≥ limiar ou hover); selecionado: anel duplo `ouro-300` com brilho e alças.
-- **Rastro de movimento**: linha tracejada `ouro-500` entre keyframes, com pequenos losangos em cada keyframe.
+- **Token de personagem**: retrato circular com anel dourado (2 px); nome em rótulo de pergaminho embaixo (zoom ≥ limiar ou hover); selecionado: anel duplo `ouro-300` com brilho. Os demais tipos usam a forma do avatar do Explorar (selo, escudo, hexágono, folha) com o anel na cor do tipo ou da entidade; sem retrato, inicial (personagem) ou ícone do tipo. O token tem 32 px na tela em qualquer zoom.
+- **Rastro de movimento**: linha tracejada `ouro-500` entre keyframes, com pequenos losangos em cada keyframe (vazados onde o token sai do mapa); traços curtos `ouro-300` sob o trilho da linha do tempo marcam as mesmas posições.
 - **Popover do mapa**: até 320 px; título em EB Garamond 20 px; ações em ícones na base.
 - **Ficha da entidade**: painel com **página de pergaminho**, retrato emoldurado e abas Resumo · Texto · Relações · Aparições · Documentos (no M2, só Resumo e Texto; as demais entram com os marcos que as alimentam). Sobre pergaminho, abas e controles usam `--wd-control-muted`, `--wd-control-selected` (couro-900) e `--wd-control-selected-rule` (ouro-700). Quando o texto é um Google Doc, um selo discreto "Google Doc" e o botão **Editar no Google Docs** ficam no topo da aba Texto.
 - **Texto de Google Doc**: mesma tipografia de livro; nomes de entidades sublinhados em pontilhado `ouro-700`; datas-âncora com pequeno losango dourado à esquerda.
