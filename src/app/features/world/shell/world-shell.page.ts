@@ -83,6 +83,7 @@ import {
 } from '../search/command-palette.component';
 import { EntityStore } from '../state/entity.store';
 import { EventStore } from '../state/event.store';
+import { HistoryStore } from '../state/history.store';
 import { MapStore } from '../state/map.store';
 import { TimelineStore } from '../state/timeline.store';
 import { WorldStore } from '../state/world.store';
@@ -141,7 +142,7 @@ const ARROW_KEYS_OWNERS =
     MapTitleComponent,
     TimelineBarComponent,
   ],
-  providers: [WorldStore, MapStore, EntityStore, EventStore, TimelineStore],
+  providers: [WorldStore, HistoryStore, MapStore, EntityStore, EventStore, TimelineStore],
   host: { '[class.has-timeline]': 'store.activeMap() !== null' },
   template: `
     <main
@@ -524,6 +525,7 @@ export default class WorldShellPage {
 
   protected readonly store = inject(WorldStore);
   protected readonly mapStore = inject(MapStore);
+  private readonly history = inject(HistoryStore);
   protected readonly entities = inject(EntityStore);
   protected readonly timeline = inject(TimelineStore);
   protected readonly events = inject(EventStore);
@@ -921,6 +923,33 @@ export default class WorldShellPage {
     } catch {
       this.toasts.show({ message: this.mapText.link.failed, kind: 'error' });
     }
+  }
+
+  /** Ctrl/Cmd+Z: desfaz a última edição do mapa e anuncia qual foi. */
+  protected async undo(): Promise<void> {
+    const text = this.mapText.history;
+    try {
+      const label = await this.history.undo();
+      void this.announcer.announce(label ? text.undone(this.editName(label)) : text.nothingToUndo);
+    } catch {
+      this.toasts.show({ message: text.undoFailed, kind: 'error' });
+    }
+  }
+
+  /** Ctrl/Cmd+Shift+Z (ou Ctrl+Y): refaz a última edição desfeita. */
+  protected async redo(): Promise<void> {
+    const text = this.mapText.history;
+    try {
+      const label = await this.history.redo();
+      void this.announcer.announce(label ? text.redone(this.editName(label)) : text.nothingToRedo);
+    } catch {
+      this.toasts.show({ message: text.redoFailed, kind: 'error' });
+    }
+  }
+
+  private editName(label: string): string {
+    const labels: Record<string, string> = this.mapText.history.labels;
+    return labels[label] ?? label;
   }
 
   private notifyImported(message: string, reduced: boolean, offerScale: boolean): void {
@@ -1359,6 +1388,9 @@ export default class WorldShellPage {
         down: () => this.canvas()?.commitTool(),
       },
       { key: 'k', mod: true, inFields: true, down: () => void this.openPalette() },
+      { key: 'z', mod: true, shift: false, when: hasMap, down: () => void this.undo() },
+      { key: 'z', mod: true, shift: true, when: hasMap, down: () => void this.redo() },
+      { key: 'y', mod: true, when: hasMap, down: () => void this.redo() },
       { key: 't', when: hasMap, down: () => this.timelineBar()?.focusCursor() },
       {
         key: 'arrowleft',

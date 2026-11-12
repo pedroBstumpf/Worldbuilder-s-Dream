@@ -3,6 +3,7 @@ import { setUpLocalTestBed } from '@data/local/testing/local-test-bed';
 import { Calendar } from '@domain/calendar/calendar';
 import { DEFAULT_CALENDAR } from '@domain/calendar/default-calendar';
 import { WorldRepository } from '@domain/ports';
+import { HistoryStore } from '../state/history.store';
 import { MapStore } from '../state/map.store';
 import { TimelineStore } from '../state/timeline.store';
 import { WorldStore } from '../state/world.store';
@@ -16,7 +17,7 @@ describe('TimelineBarComponent', () => {
   let teardown: () => Promise<void>;
 
   beforeEach(async () => {
-    ({ teardown } = await setUpLocalTestBed([WorldStore, MapStore, TimelineStore]));
+    ({ teardown } = await setUpLocalTestBed([WorldStore, MapStore, HistoryStore, TimelineStore]));
     const world = await TestBed.inject(WorldRepository).create(
       { id: crypto.randomUUID(), name: 'Eldoria', timeStart: 0, timeEnd: yearStart(100) },
       DEFAULT_CALENDAR,
