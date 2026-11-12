@@ -5,6 +5,8 @@ import {
   applySceneChange,
   invertSceneChange,
   isEmptySceneChange,
+  writeAnnotation,
+  type AnnotationShape,
   type SceneChange,
 } from '@domain/maps';
 import {
@@ -16,6 +18,7 @@ import {
 } from '@domain/timeline';
 import type {
   InterpolationMode,
+  MapAnnotation,
   MapLink,
   MapToken,
   PolygonVertex,
@@ -27,6 +30,8 @@ import type {
 import {
   AssetRepository,
   MapRepository,
+  type MapAnnotationInput,
+  type MapAnnotationPatch,
   type MapScene,
   type MapTokenInput,
   type TokenKeyframeInput,
@@ -53,6 +58,40 @@ function tokenInput(token: MapToken): MapTokenInput {
 function keyframeInput(keyframe: TokenKeyframe): TokenKeyframeInput {
   const { id, worldId, tokenId, tick, x, y, visible, interpolation, note } = keyframe;
   return { id, worldId, tokenId, tick, x, y, visible, interpolation, note };
+}
+
+function annotationInput(annotation: MapAnnotation): MapAnnotationInput {
+  const { id, worldId, mapId, kind, geometry, style, title, entityId, eventId } = annotation;
+  const { tickStart, tickEnd, zIndex } = annotation;
+  return {
+    id,
+    worldId,
+    mapId,
+    kind,
+    geometry,
+    style,
+    title,
+    entityId,
+    eventId,
+    tickStart,
+    tickEnd,
+    zIndex,
+  };
+}
+
+function annotationPatch(annotation: MapAnnotation): MapAnnotationPatch {
+  const { geometry, style, title, entityId, eventId, tickStart, tickEnd, zIndex } = annotation;
+  return { geometry, style, title, entityId, eventId, tickStart, tickEnd, zIndex };
+}
+
+/** O que a edição de uma anotação pode mudar (a forma vem do motor ou do editor). */
+export interface AnnotationEdit {
+  shape?: AnnotationShape;
+  title?: string | null;
+  entityId?: Uuid | null;
+  eventId?: Uuid | null;
+  tickStart?: Tick | null;
+  tickEnd?: Tick | null;
 }
 
 /** Nomes das edições do mapa no desfazer (textos em `MAP_STRINGS.history.labels`). */
@@ -89,8 +128,12 @@ export const MapStore = signalStore(
           patchState(store, { scene: { ...saved, map: scene.map } });
       };
 
-      /** Grava na ordem que respeita as chaves: tokens, keyframes, remoções, links. */
-      const persist = async (change: SceneChange) => {
+      /**
+       * Grava na ordem que respeita as chaves: tokens, keyframes, remoções, links e
+       * anotações. Anotações têm `version`: a que já existia em `before` é atualizada com
+       * a versão gravada; as outras são criadas. Devolve as anotações como ficaram.
+       */
+      const persist = async (change: SceneChange, before: MapScene) => {
         await Promise.all((change.putTokens ?? []).map((t) => maps.saveToken(tokenInput(t))));
         await Promise.all(
           (change.putKeyframes ?? []).map((k) => maps.saveKeyframe(keyframeInput(k))),
@@ -99,6 +142,25 @@ export const MapStore = signalStore(
         await Promise.all((change.removeTokens ?? []).map((id) => maps.deleteToken(id)));
         await Promise.all((change.putLinks ?? []).map((link) => maps.saveLink(link)));
         await Promise.all((change.removeLinks ?? []).map((id) => maps.deleteLink(id)));
+        const saved = await Promise.all(
+          (change.putAnnotations ?? []).map((annotation) => {
+            const old = before.annotations.find((a) => a.id === annotation.id);
+            return old
+              ? maps.updateAnnotation(annotation.id, annotationPatch(annotation), old.version)
+              : maps.createAnnotation(annotationInput(annotation));
+          }),
+        );
+        await Promise.all((change.removeAnnotations ?? []).map((id) => maps.deleteAnnotation(id)));
+        return saved;
+      };
+
+      /** Põe na cena as anotações como o repositório as gravou (nova `version`). */
+      const syncAnnotations = (mapId: Uuid, saved: readonly MapAnnotation[]) => {
+        const scene = store.scene();
+        if (saved.length === 0 || scene?.map.id !== mapId) return;
+        const byId = new Map(saved.map((a) => [a.id, a]));
+        const annotations = scene.annotations.map((a) => byId.get(a.id) ?? a);
+        patchState(store, { scene: { ...scene, annotations } });
       };
 
       /**
@@ -108,11 +170,12 @@ export const MapStore = signalStore(
       const apply = async (mapId: Uuid, change: SceneChange, inverse: SceneChange) => {
         const scene = store.scene();
         if (scene?.map.id !== mapId) throw new Error('a edição é de outro mapa');
-        patchState(store, { scene: applySceneChange(scene, change) });
+        const next = applySceneChange(scene, change);
+        patchState(store, { scene: next });
         try {
-          await persist(change);
+          syncAnnotations(mapId, await persist(change, scene));
         } catch (error) {
-          await persist(inverse).catch(() => undefined);
+          await persist(inverse, next).catch(() => undefined);
           await resync(mapId);
           throw error;
         }
@@ -197,6 +260,64 @@ export const MapStore = signalStore(
 
         removeLink(id: Uuid): Promise<void> {
           return edit('unlink', () => ({ removeLinks: [id] }));
+        },
+
+        /** Nova anotação (pino, traço, região, rótulo ou medição fixada). */
+        async addAnnotation(
+          shape: AnnotationShape,
+          extra: Omit<AnnotationEdit, 'shape'> = {},
+        ): Promise<MapAnnotation> {
+          const scene = requireScene();
+          const now = new Date().toISOString();
+          const annotation: MapAnnotation = {
+            id: crypto.randomUUID(),
+            worldId: scene.map.worldId,
+            mapId: scene.map.id,
+            kind: shape.kind,
+            ...writeAnnotation(shape),
+            title: extra.title ?? null,
+            entityId: extra.entityId ?? null,
+            eventId: extra.eventId ?? null,
+            tickStart: extra.tickStart ?? null,
+            tickEnd: extra.tickEnd ?? null,
+            zIndex: 0,
+            version: 1,
+            createdBy: null,
+            createdAt: now,
+            updatedAt: now,
+          };
+          await edit(ADD_LABELS[shape.kind], () => ({ putAnnotations: [annotation] }));
+          return annotation;
+        },
+
+        /** Muda forma, título, vínculos ou validade; `label` nomeia a edição no desfazer. */
+        updateAnnotation(
+          id: Uuid,
+          changes: AnnotationEdit,
+          label: MapEditLabel = 'editAnnotation',
+        ): Promise<void> {
+          return edit(label, (scene) => {
+            const old = scene.annotations.find((a) => a.id === id);
+            if (!old) return null;
+            const { shape, ...fields } = changes;
+            if (shape && shape.kind !== old.kind) throw new Error('a forma é de outro tipo');
+            const next: MapAnnotation = { ...old, ...fields, ...(shape && writeAnnotation(shape)) };
+            if (next.tickStart !== null && next.tickEnd !== null && next.tickEnd < next.tickStart) {
+              throw new Error('a validade termina antes de começar');
+            }
+            return JSON.stringify(next) === JSON.stringify(old) ? null : { putAnnotations: [next] };
+          });
+        },
+
+        /** Apaga anotações (lixeira do editor, Del, ou uma passada da borracha). */
+        removeAnnotations(
+          ids: readonly Uuid[],
+          label: MapEditLabel = 'removeAnnotation',
+        ): Promise<void> {
+          return edit(label, (scene) => {
+            const present = ids.filter((id) => scene.annotations.some((a) => a.id === id));
+            return present.length > 0 ? { removeAnnotations: present } : null;
+          });
         },
 
         /** Ponto do evento neste mapa (o keyframe do token do evento), se marcado. */
@@ -375,6 +496,15 @@ export const MapStore = signalStore(
     },
   ),
 );
+
+/** Nome da criação de cada tipo de anotação no desfazer. */
+const ADD_LABELS = {
+  pin: 'addPin',
+  stroke: 'addStroke',
+  region: 'addRegion',
+  label: 'addLabel',
+  measure: 'addMeasure',
+} as const satisfies Record<AnnotationShape['kind'], MapEditLabel>;
 
 function keyframesOf(scene: MapScene | null, tokenId: Uuid): TokenKeyframe[] {
   return sortKeyframes(scene?.keyframes.filter((k) => k.tokenId === tokenId) ?? []);
