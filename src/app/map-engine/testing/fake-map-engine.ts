@@ -1,4 +1,5 @@
 import type { Point } from '@domain/geometry';
+import type { BrushStyle } from '@domain/maps';
 import type { Tick, Uuid } from '@domain/models';
 import type { MapScene } from '@domain/ports';
 import { evaluateKeyframes, sortKeyframes } from '@domain/timeline';
@@ -31,6 +32,9 @@ export class FakeMapEngine implements MapEngine {
   readonly patches: ScenePatch[] = [];
   drop: { entityId: Uuid; clientX: number; clientY: number } | null = null;
   trails: Uuid[] = [];
+  drawStyle: BrushStyle | null = null;
+  activeAnnotation: Uuid | null = null;
+  distanceFormat: ((pixels: number) => string) | null = null;
   camera: Camera = { center: { x: 0, y: 0 }, zoom: 1 };
   fits = 0;
   committed = 0;
@@ -87,6 +91,18 @@ export class FakeMapEngine implements MapEngine {
 
   setTrails(tokenIds: Uuid[]): void {
     this.trails = tokenIds;
+  }
+
+  setDrawStyle(style: BrushStyle): void {
+    this.drawStyle = style;
+  }
+
+  setActiveAnnotation(id: Uuid | null): void {
+    this.activeAnnotation = id;
+  }
+
+  setDistanceFormat(format: ((pixels: number) => string) | null): void {
+    this.distanceFormat = format;
   }
 
   previewDrop(drop: { entityId: Uuid; clientX: number; clientY: number } | null): void {
