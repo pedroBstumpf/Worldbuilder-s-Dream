@@ -31,7 +31,7 @@ import { WorldStore } from '../state/world.store';
                   type="button"
                   class="date wd-focus"
                   [attr.aria-current]="k.id === s.currentId ? 'time' : null"
-                  [attr.aria-label]="text.goTo(k.date)"
+                  [title]="text.goTo(k.date)"
                   (click)="timeline.seek(k.tick)"
                 >
                   {{ k.date }}
@@ -146,7 +146,7 @@ import { WorldStore } from '../state/world.store';
       margin-inline-start: 6px;
       font-family: var(--font-sans);
       font-size: 0.75rem;
-      color: var(--wd-control-muted);
+      color: var(--wd-text-on-page);
     }
 
     .mode {
@@ -163,7 +163,7 @@ import { WorldStore } from '../state/world.store';
       font-family: var(--font-sans);
       font-size: 0.8125rem;
       font-style: italic;
-      color: var(--wd-control-muted);
+      color: var(--wd-text-on-page);
     }
 
     .remove {
