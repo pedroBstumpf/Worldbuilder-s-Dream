@@ -220,6 +220,7 @@ export const MapStore = signalStore(
               keyframes: [],
               annotations: [],
               links: [],
+              imageVersions: [],
             };
             let image = localImage;
             if (!image && map.imageAssetId) {
