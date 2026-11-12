@@ -201,6 +201,72 @@
     border: 0;
     border-block-start: 1px solid var(--wd-divider);
   }
+
+  /* Texto rico das fichas (Tiptap): tipografia de livro sobre pergaminho. */
+  .wd-prose {
+    min-block-size: 12rem;
+    padding: 8px 4px;
+    font-family: var(--font-book);
+    font-size: 1.125rem;
+    line-height: 1.55;
+    color: var(--wd-text-on-page);
+    outline: none;
+  }
+
+  .wd-prose > * + * {
+    margin-block-start: 0.6em;
+  }
+
+  .wd-prose h2 {
+    font-size: 1.375rem;
+    font-weight: 600;
+  }
+
+  .wd-prose h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    font-style: italic;
+  }
+
+  .wd-prose ul {
+    padding-inline-start: 1.4em;
+    list-style: disc;
+  }
+
+  .wd-prose ol {
+    padding-inline-start: 1.4em;
+    list-style: decimal;
+  }
+
+  .wd-prose blockquote {
+    padding-inline-start: 12px;
+    font-style: italic;
+    color: var(--wd-text-on-page-muted);
+    border-inline-start: 3px solid var(--pergaminho-300);
+  }
+
+  .wd-prose a {
+    color: var(--tinta);
+    text-decoration: underline;
+  }
+
+  .wd-prose .mention {
+    padding: 0 3px;
+    text-decoration: underline dotted var(--ouro-700);
+    text-underline-offset: 3px;
+    cursor: pointer;
+    background: color-mix(in oklab, var(--ouro-300) 25%, transparent);
+    border-radius: 3px;
+  }
+
+  .wd-prose p.is-editor-empty:first-child::before {
+    float: inline-start;
+    block-size: 0;
+    font-style: italic;
+    color: var(--wd-text-on-page-muted);
+    pointer-events: none;
+    content: attr(data-placeholder);
+  }
 }
 
 /*
