@@ -1,8 +1,8 @@
 import { checkMapImage, IMAGE_SIGNATURE_BYTES, type MapImageRejection } from '@domain/maps';
-import type { MapImageWorkerResponse } from './map-image.worker';
-import type { ProcessedMapImage } from './process-map-image';
+import type { MapImageWorkerRequest, MapImageWorkerResponse } from './map-image.worker';
+import type { AspectFit, ProcessedMapImage } from './process-map-image';
 
-export type { ProcessedMapImage } from './process-map-image';
+export type { AspectFit, ProcessedMapImage } from './process-map-image';
 
 /** Por que a imagem não virou mapa; a interface escolhe a mensagem pelo motivo. */
 export type MapImageFailure = MapImageRejection | 'decode_failed' | 'unsupported';
@@ -25,10 +25,10 @@ export async function validateMapImage(file: Blob): Promise<MapImageRejection | 
 }
 
 /**
- * Lê uma imagem de mapa: valida e processa num Web Worker com `OffscreenCanvas`.
- * Rejeita com `MapImageError`.
+ * Lê uma imagem de mapa: valida e processa num Web Worker com `OffscreenCanvas`. Com
+ * `fit`, corta ou põe margens para a proporção do mapa. Rejeita com `MapImageError`.
  */
-export async function readMapImage(file: Blob): Promise<ProcessedMapImage> {
+export async function readMapImage(file: Blob, fit?: AspectFit): Promise<ProcessedMapImage> {
   const rejection = await validateMapImage(file);
   if (rejection) throw new MapImageError(rejection);
   if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') {
@@ -41,7 +41,8 @@ export async function readMapImage(file: Blob): Promise<ProcessedMapImage> {
         resolve(event.data),
       );
       worker.addEventListener('error', (event) => reject(new Error(event.message)));
-      worker.postMessage(file);
+      const request: MapImageWorkerRequest = fit ? { file, fit } : { file };
+      worker.postMessage(request);
     });
     if (!response.ok) throw new MapImageError('decode_failed', response.message);
     return response.result;
