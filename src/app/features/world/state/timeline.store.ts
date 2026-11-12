@@ -48,7 +48,7 @@ export const TimelineStore = signalStore(
     view: { start: 0, end: 1 },
     width: 800,
     isPlaying: false,
-    speed: 'year',
+    speed: { amount: 1, unit: 'year' },
     loop: false,
   }),
   withComputed(({ view, width }, world = inject(WorldStore)) => {

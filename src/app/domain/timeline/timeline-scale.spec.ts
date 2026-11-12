@@ -7,15 +7,18 @@ import {
   eventWindow,
   fullView,
   isEventActive,
+  isValidSpeed,
   maxViewSpan,
   minViewSpan,
   panView,
+  playDuration,
   precisionFor,
   revealTick,
   rulerMarks,
   rulerStep,
   snapTick,
   stepTick,
+  suggestSpeed,
   tickToX,
   ticksPerSecond,
   unitLength,
@@ -109,8 +112,28 @@ describe('timeline-scale', () => {
   });
 
   it('converte velocidades em ticks por segundo', () => {
-    expect(ticksPerSecond(calendar, 'day')).toBe(DAY);
-    expect(ticksPerSecond(calendar, 'decade')).toBe(DAY * 365.25 * 10);
+    expect(ticksPerSecond(calendar, { amount: 1, unit: 'day' })).toBe(DAY);
+    expect(ticksPerSecond(calendar, { amount: 10, unit: 'year' })).toBe(DAY * 365.25 * 10);
+    expect(ticksPerSecond(calendar, { amount: 0.5, unit: 'month' })).toBe((DAY * 365.25) / 24);
+  });
+
+  it('valida velocidades e calcula a duração do play', () => {
+    expect(isValidSpeed({ amount: 2.5, unit: 'year' })).toBe(true);
+    expect(isValidSpeed({ amount: 0, unit: 'year' })).toBe(false);
+    expect(isValidSpeed({ amount: 5_000_000, unit: 'year' })).toBe(false);
+    expect(isValidSpeed({ amount: 1, unit: 'decade' })).toBe(false);
+    expect(isValidSpeed({ amount: '1', unit: 'day' })).toBe(false);
+    const century = { start: 0, end: DAY * 365.25 * 100 };
+    expect(playDuration(calendar, century, { amount: 1, unit: 'year' })).toBe(100);
+  });
+
+  it('sugere a velocidade que percorre o mundo em cerca de um minuto', () => {
+    const years = (n: number) => ({ start: 0, end: Math.round(DAY * 365.25 * n) });
+    expect(suggestSpeed(calendar, years(100))).toEqual({ amount: 1, unit: 'year' });
+    expect(suggestSpeed(calendar, years(5000))).toEqual({ amount: 100, unit: 'year' });
+    expect(suggestSpeed(calendar, years(80_000))).toEqual({ amount: 1000, unit: 'year' });
+    expect(suggestSpeed(calendar, years(1))).toEqual({ amount: 1, unit: 'month' });
+    expect(suggestSpeed(calendar, { start: 0, end: DAY * 60 })).toEqual({ amount: 1, unit: 'day' });
   });
 
   it('escolhe o passo da régua pelo espaço disponível', () => {

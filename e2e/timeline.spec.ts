@@ -67,6 +67,29 @@ test.describe('time: timeline, calendar and events', () => {
     await expect(cursor(page)).toHaveAttribute('aria-valuetext', '1 EC');
   });
 
+  test('sets the play speed and keeps it for the world', async ({ page }) => {
+    await openWorldWithMap(page, 'Valmora');
+    const speed = page.getByRole('button', { name: /Velocidade do play/ });
+    await expect(speed).toHaveText('1 ano/s');
+    await speed.click();
+    const dialog = page.getByRole('dialog', { name: time.speed.title });
+    await expect(dialog).toBeVisible();
+    expect((await axe(page)).violations).toEqual([]);
+    await dialog.getByRole('radio', { name: '1.000 anos/s' }).click();
+    await expect(dialog.getByText(/Percorre o mundo inteiro em/)).toHaveText(
+      time.speed.duration('menos de 1 s'),
+    );
+    await dialog.getByLabel(time.speed.amount).fill('250');
+    await dialog.getByRole('button', { name: time.speed.apply }).click();
+    await expect(speed).toHaveText('250 anos/s');
+    await expect(speed).toBeFocused();
+
+    // Gravada nas preferências do perfil (depois de uma pausa) para este mundo.
+    await page.waitForTimeout(1200);
+    await page.reload();
+    await expect(page.getByRole('button', { name: /Velocidade do play/ })).toHaveText('250 anos/s');
+  });
+
   test('edits the world calendar and shows dates with it', async ({ page }) => {
     await openWorldWithMap(page, 'Valmora');
     await page.getByRole('button', { name: time.timeline.calendar }).click();

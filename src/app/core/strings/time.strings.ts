@@ -1,5 +1,29 @@
 import type { CalendarUnit } from '@domain/calendar/calendar-definition';
-import type { PlaySpeed } from '@domain/timeline';
+import type { PlaySpeed, SpeedUnit } from '@domain/timeline';
+
+const SPEED_UNIT_NAMES: Record<SpeedUnit, { one: string; many: string }> = {
+  day: { one: 'dia', many: 'dias' },
+  month: { one: 'mês', many: 'meses' },
+  year: { one: 'ano', many: 'anos' },
+};
+
+/** "1 ano/s", "1.000 anos/s", "2,5 meses/s". */
+function formatSpeed({ amount, unit }: PlaySpeed): string {
+  const name = SPEED_UNIT_NAMES[unit];
+  return `${amount.toLocaleString('pt-BR')} ${amount === 1 ? name.one : name.many}/s`;
+}
+
+/** Duração legível: "45 s", "3 min 20 s", "2 h 5 min", "3 dias". */
+function formatDuration(seconds: number): string {
+  if (seconds < 1) return 'menos de 1 s';
+  const s = Math.round(seconds);
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return s % 60 ? `${m} min ${s % 60} s` : `${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return m % 60 ? `${h} h ${m % 60} min` : `${h} h`;
+  return `${Math.round(h / 24).toLocaleString('pt-BR')} dias`;
+}
 
 /** Textos da linha do tempo, do editor de calendário e dos eventos (M3). */
 export const TIME_STRINGS = {
@@ -11,13 +35,8 @@ export const TIME_STRINGS = {
       'Home e End vão ao início e ao fim do mundo. + e − aproximam e afastam; 0 mostra tudo. Espaço reproduz.',
     play: 'Reproduzir',
     pause: 'Pausar',
-    speed: (value: string) => `Velocidade: ${value}. Clique para trocar.`,
-    speeds: {
-      day: '1 dia/s',
-      month: '1 mês/s',
-      year: '1 ano/s',
-      decade: '10 anos/s',
-    } satisfies Record<PlaySpeed, string>,
+    speed: (value: string) => `Velocidade do play: ${value}. Clique para configurar.`,
+    formatSpeed,
     loop: 'Repetir ao chegar ao fim',
     showAll: 'Mostrar o mundo inteiro',
     newEvent: 'Novo evento nesta data',
@@ -30,6 +49,20 @@ export const TIME_STRINGS = {
       month: 'mês',
       year: 'ano',
     } satisfies Record<CalendarUnit, string>,
+  },
+  speed: {
+    title: 'Velocidade do play',
+    presets: 'Atalhos',
+    custom: 'Personalizada',
+    amount: 'Quantidade',
+    unit: 'Unidade',
+    perSecond: 'por segundo',
+    units: { day: 'dias', month: 'meses', year: 'anos' } satisfies Record<SpeedUnit, string>,
+    invalid: (min: string, max: string) => `Use um número entre ${min} e ${max}.`,
+    duration: (time: string) => `Percorre o mundo inteiro em ${time}.`,
+    formatDuration,
+    cancel: 'Cancelar',
+    apply: 'Aplicar',
   },
   date: {
     day: 'Dia',

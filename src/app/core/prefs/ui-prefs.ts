@@ -26,6 +26,15 @@ export interface SavedCamera {
 /** Quantas câmeras guardar (as mais antigas saem, para caber nos 16 kB de `ui_prefs`). */
 export const MAX_SAVED_CAMERAS = 60;
 
+/** Velocidade do play salva por mundo (`ui_prefs.timelineSpeeds[worldId]`). */
+export interface SavedSpeed {
+  amount: number;
+  unit: 'day' | 'month' | 'year';
+}
+
+/** Quantos mundos guardar a velocidade (os mais antigos saem). */
+export const MAX_SAVED_SPEEDS = 60;
+
 function isObject(value: Json | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -79,4 +88,24 @@ export function writeCamera(prefs: JsonObject, mapId: Uuid, camera: SavedCamera)
   };
   entries.push([mapId, rounded]);
   return Object.fromEntries(entries.slice(-MAX_SAVED_CAMERAS));
+}
+
+/** Velocidade do play do mundo, ou `null` (nunca definida ou inválida). */
+export function readSpeed(prefs: JsonObject, worldId: Uuid): SavedSpeed | null {
+  const speeds = prefs['timelineSpeeds'];
+  if (!isObject(speeds)) return null;
+  const speed = speeds[worldId];
+  if (!isObject(speed)) return null;
+  const amount = finite(speed['amount']);
+  const unit = speed['unit'];
+  if (amount === null || amount <= 0) return null;
+  return unit === 'day' || unit === 'month' || unit === 'year' ? { amount, unit } : null;
+}
+
+/** Novo `ui_prefs.timelineSpeeds` com a velocidade do mundo no fim (a mais recente). */
+export function writeSpeed(prefs: JsonObject, worldId: Uuid, speed: SavedSpeed): JsonObject {
+  const current = isObject(prefs['timelineSpeeds']) ? prefs['timelineSpeeds'] : {};
+  const entries = Object.entries(current).filter(([id]) => id !== worldId);
+  entries.push([worldId, { amount: speed.amount, unit: speed.unit }]);
+  return Object.fromEntries(entries.slice(-MAX_SAVED_SPEEDS));
 }
