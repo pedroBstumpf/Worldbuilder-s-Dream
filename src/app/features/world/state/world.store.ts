@@ -1,8 +1,13 @@
 import { computed, inject } from '@angular/core';
 import { WorldPrefetch } from '@core/world/world-prefetch.service';
+// Caminhos diretos: o índice de `@domain/calendar` traz o Zod, que só o editor usa.
+import { Calendar } from '@domain/calendar/calendar';
+import type { CalendarDefinition } from '@domain/calendar/calendar-definition';
+import { DEFAULT_CALENDAR } from '@domain/calendar/default-calendar';
 import { buildMapTree, mapPath, rescaleFactor, scaleFromLine } from '@domain/maps';
-import type { ScaleUnit, Uuid, World, WorldMap } from '@domain/models';
+import type { ScaleUnit, Tick, Uuid, World, WorldMap } from '@domain/models';
 import { AssetRepository, MapRepository, WorldRepository } from '@domain/ports';
+import type { TimeRange } from '@domain/timeline';
 import type { ProcessedMapImage } from '@engine/import/read-map-image';
 import type { MapImageSource } from '@engine/map-engine';
 import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
@@ -17,6 +22,8 @@ export interface UploadState {
 
 interface WorldState {
   readonly world: World | null;
+  /** Calendário do mundo (`calendars.definition`); o padrão até carregar. */
+  readonly calendarDefinition: CalendarDefinition;
   readonly maps: readonly WorldMap[];
   readonly activeMapId: Uuid | null;
   readonly status: WorldStatus;
@@ -29,6 +36,13 @@ interface LocalImage {
   /** O bitmap vai para o motor na primeira exibição; depois, usa-se o blob. */
   bitmapTaken: boolean;
   objectUrl: string | null;
+}
+
+/** Faixa do mundo e "agora da narrativa" (docs/06 › Faixa do mundo). */
+export interface TimeSettings {
+  readonly timeStart: Tick;
+  readonly timeEnd: Tick;
+  readonly nowTick: Tick | null;
 }
 
 export interface ScaleInput {
@@ -46,12 +60,19 @@ export interface ScaleInput {
 export const WorldStore = signalStore(
   withState<WorldState>({
     world: null,
+    calendarDefinition: DEFAULT_CALENDAR,
     maps: [],
     activeMapId: null,
     status: 'loading',
     upload: null,
   }),
-  withComputed(({ maps, activeMapId }) => ({
+  withComputed(({ world, calendarDefinition, maps, activeMapId }) => ({
+    calendar: computed(() => new Calendar(calendarDefinition())),
+    /** Trilho da linha do tempo (sem mundo carregado, um intervalo mínimo). */
+    range: computed<TimeRange>(() => {
+      const current = world();
+      return current ? { start: current.timeStart, end: current.timeEnd } : { start: 0, end: 1 };
+    }),
     activeMap: computed(() => maps().find((m) => m.id === activeMapId()) ?? null),
     tree: computed(() => buildMapTree(maps())),
     activePath: computed(() => {
@@ -148,7 +169,13 @@ export const WorldStore = signalStore(
               patchState(store, { status: 'not_found' });
               return 'not_found';
             }
-            patchState(store, { world, maps, status: 'ready' });
+            const calendar = await worlds.getCalendar(worldId);
+            patchState(store, {
+              world,
+              calendarDefinition: calendar.definition,
+              maps,
+              status: 'ready',
+            });
             const preferred = maps.find((m) => m.id === preferredMapId);
             patchState(store, { activeMapId: preferred?.id ?? store.tree()[0]?.map.id ?? null });
             return 'ready';
@@ -263,6 +290,22 @@ export const WorldStore = signalStore(
               current(id).version,
             ),
           );
+        },
+
+        /** Grava o calendário do mundo (já validado pelo editor). */
+        async saveCalendar(definition: CalendarDefinition): Promise<void> {
+          const world = store.world();
+          if (!world) throw new Error('mundo não carregado');
+          const saved = await worlds.saveCalendar(world.id, definition);
+          patchState(store, { calendarDefinition: saved.definition });
+        },
+
+        /** Faixa do mundo e "agora da narrativa". */
+        async updateTime(settings: Partial<TimeSettings>): Promise<void> {
+          const world = store.world();
+          if (!world) throw new Error('mundo não carregado');
+          const updated = await worlds.update(world.id, settings, world.version);
+          patchState(store, { world: updated });
         },
 
         /** Descarta imagens locais (ao sair da tela). */
