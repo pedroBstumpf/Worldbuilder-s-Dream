@@ -293,9 +293,9 @@ Não há campos de e-mail ou senha. Se o e-mail não estiver autorizado, a placa
 4. Aproximação leve até o livro aberto ocupar a tela; rota `/biblioteca`.
 
 #### 2. Biblioteca (livro aberto), rota `/biblioteca`
-- **Página esquerda, "Sumário"**: mundos como índice de livro (nome em EB Garamond, linha pontilhada, data da última edição). Ao final, "✒ Criar novo mundo". A **fita marcadora** aponta o último mundo aberto. Muitos mundos são paginados com virada de página.
-- **Página direita, "Frontispício"** do mundo selecionado: miniatura do mapa emoldurada, nome em Cinzel, descrição em itálico, contagem de personagens, locais e eventos, intervalo de tempo coberto e o botão dourado **Abrir mundo**. Ações secundárias (renomear, duplicar, arquivar, exportar, membros, lixeira) no menu "⋯".
-- **Livro em branco** (nenhum mundo): página esquerda vazia com ilustração em traço de pena e "Seu livro está em branco"; página direita com **Criar primeiro mundo**.
+- **Página esquerda, "Sumário"**: mundos como índice de livro (nome em EB Garamond, linha pontilhada, data da última edição). Abas **Mundos · Arquivados · Lixeira** (as duas últimas com a contagem) trocam a lista. Ao final da aba Mundos, "✒ Criar novo mundo" e "Importar mundo" (arquivo `.json`, docs/07). A **fita marcadora** aponta o último mundo aberto. Muitos mundos são paginados com virada de página.
+- **Página direita, "Frontispício"** do mundo selecionado: miniatura do mapa emoldurada, nome em Cinzel, descrição em itálico, contagem de personagens, locais e eventos, intervalo de tempo coberto e o botão dourado **Abrir mundo**. Ações secundárias (renomear, duplicar, exportar, arquivar ou desarquivar, membros, mover para a lixeira) no menu "⋯". Arquivar e mover para a lixeira avisam com **Desfazer**. Na aba Lixeira, a miniatura fica esmaecida e os botões são **Restaurar** e **Excluir para sempre** (este pede confirmação e apaga o mundo com tudo o que há nele).
+- **Livro em branco** (nenhum mundo): página esquerda vazia com ilustração em traço de pena e "Seu livro está em branco"; página direita com **Criar primeiro mundo** e **Importar mundo**.
 - Na primeira abertura da sessão, os itens entram com efeito de **escrita a tinta**.
 
 #### 3. Virada de página para o mapa, rota `/w/:worldId`

@@ -501,6 +501,29 @@ create policy "world assets write" on storage.objects for insert to authenticate
 - **Lixeira**: itens com `deleted_at` ficam na lixeira até o usuário esvaziá-la (RPC `empty_trash`); não há purga agendada.
 - **Backups**: o plano gratuito do Supabase não tem backups automáticos; o backup diário e a restauração estão em [`docs/09`](09-seguranca-e-operacao.md#backups).
 
+## Exportar e importar (JSON)
+Um mundo exportado é **um único arquivo `.json`** com as imagens embutidas em base64, para que importar em outro navegador (ou, na Fase 2, no Supabase) traga o mundo inteiro. O modo local e a Edge Function `export-world` geram o mesmo formato (`domain/transfer/world-file.ts`).
+
+```jsonc
+{
+  "format": "worldbuilders-dream/world",
+  "formatVersion": 1,             // mudança incompatível → nova versão
+  "exportedAt": "2026-11-12T10:00:00.000Z",
+  "world": { /* World */ },
+  "calendar": { /* CalendarDefinition */ },
+  "maps": [], "mapLinks": [], "mapImageVersions": [],
+  "mapTokens": [], "tokenKeyframes": [], "mapAnnotations": [],
+  "entities": [], "events": [], "entityMentions": [],
+  "assets": [ { /* Asset */ "data": "<base64 dos bytes>" } ]
+}
+```
+
+- **Linhas = modelos do front** (camelCase, `domain/models`), incluindo as que estão na lixeira do mundo, para nenhuma referência ficar sem destino. Membros e perfis não entram.
+- **Validação na importação** (zod): formato e versão, tipos de cada coluna, toda linha do mesmo mundo, toda referência apontando para uma linha do arquivo. Imagens só PNG, JPEG ou WebP, e o tipo declarado precisa bater com a assinatura dos bytes (um SVG ou HTML disfarçado é recusado). Qualquer problema vira `AppError('validation')` e nada é gravado.
+- **Importar é sempre uma cópia**: todo id ganha um uuid novo (`asWorldCopy`), trocando qualquer string igual a um id antigo em qualquer profundidade, o que também corrige as menções no JSON do Tiptap. Importar duas vezes dá dois mundos. Quem importa vira o dono e o autor (`created_by`) das linhas; o mundo entra criado agora, fora do arquivo e da lixeira.
+- **Duplicar** usa o mesmo caminho (exportar → cópia → importar) sem passar pelo arquivo.
+- Porta: `WorldTransferRepository` (`exportWorld`, `importWorld`); a exclusão definitiva fica em `WorldRepository.deleteForever` (só para mundos na lixeira), que no modo local apaga numa transação o que o `on delete cascade` apagaria.
+
 ## Testes do banco (pgTAP)
 Para cada tabela: (1) RLS habilitado; (2) dono lê/escreve; (3) editor lê/escreve mas não gerencia membros nem exclui o mundo; (4) estranho não lê; (5) `anon` não acessa nada; (6) triggers de consistência rejeitam `world_id` incoerente.
 ```sql
