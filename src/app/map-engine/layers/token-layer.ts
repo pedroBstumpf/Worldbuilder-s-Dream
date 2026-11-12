@@ -72,6 +72,15 @@ export class TokenLayer {
     return this.sprites.size;
   }
 
+  /** Posição atual do token da entidade neste mapa (`null` se não houver ou estiver oculto). */
+  positionOfEntity(entityId: Uuid): { x: number; y: number } | null {
+    for (const entry of this.sprites.values()) {
+      if (entry.token.entityId !== entityId) continue;
+      return entry.sprite.visible ? { x: entry.sprite.x, y: entry.sprite.y } : null;
+    }
+    return null;
+  }
+
   destroy(): void {
     this.container.destroy({ children: true });
     this.texture?.destroy(true);

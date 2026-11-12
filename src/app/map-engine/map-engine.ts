@@ -7,9 +7,12 @@ import type { MapScene } from '@domain/ports';
  * interface; a implementação com PixiJS fica em `render/` e não conhece Angular.
  */
 
-/** Ferramentas do M1; as de desenho (pino, régua, pincel…) chegam no M5. */
-export type ToolId = 'select' | 'pan' | 'calibrate' | 'link';
-export const TOOL_IDS: readonly ToolId[] = ['select', 'pan', 'calibrate', 'link'];
+/**
+ * Ferramentas do M1 e `place` (M3: um clique escolhe um ponto, como o lugar de um evento);
+ * as de desenho (pino, régua, pincel…) chegam no M5.
+ */
+export type ToolId = 'select' | 'pan' | 'calibrate' | 'link' | 'place';
+export const TOOL_IDS: readonly ToolId[] = ['select', 'pan', 'calibrate', 'link', 'place'];
 
 /** Camadas na ordem de desenho (docs/06 › Camadas). */
 export type LayerId = 'background' | 'regions' | 'routes' | 'tokens' | 'labels' | 'overlay';
@@ -39,10 +42,24 @@ export interface ViewportInsets {
   left: number;
 }
 
+/** Evento da linha do tempo, como o motor precisa para o marcador (docs/06 §4). */
+export interface EventMarkerInput {
+  id: Uuid;
+  title: string;
+  tickStart: Tick;
+  tickEnd: Tick | null;
+  /** Cor do marcador; `null` = ouro. */
+  color: string | null;
+  /** Sem token do evento no mapa, o marcador fica no token deste local (se houver). */
+  locationEntityId: Uuid | null;
+}
+
 /** Mudanças incrementais vindas das stores. */
 export type ScenePatch =
   | { type: 'links'; links: MapLink[] }
-  | { type: 'tokens'; tokens: MapToken[]; keyframes: TokenKeyframe[] };
+  | { type: 'tokens'; tokens: MapToken[]; keyframes: TokenKeyframe[] }
+  /** `window`: quanto um evento pontual continua visível depois do início (em ticks). */
+  | { type: 'events'; events: EventMarkerInput[]; window: Tick };
 
 export type EngineEvent =
   | { type: 'token:moved'; tokenId: Uuid; to: Point; tick: Tick }
@@ -55,7 +72,13 @@ export type EngineEvent =
   /** A ferramenta de link fechou um polígono. */
   | { type: 'region:drawn'; polygon: PolygonVertex[] }
   /** Quantos pontos a ferramenta ativa já tem (para as instruções na tela). */
-  | { type: 'tool:progress'; tool: ToolId; points: number };
+  | { type: 'tool:progress'; tool: ToolId; points: number }
+  /** A ferramenta `place` escolheu um ponto (clique, ou Enter no centro da área visível). */
+  | { type: 'point:picked'; point: Point }
+  /** Clique num marcador de evento. */
+  | { type: 'event:open'; eventId: Uuid }
+  /** Ponteiro sobre um marcador (`eventId` nulo ao sair); `anchor` em coordenadas da janela. */
+  | { type: 'event:hover'; eventId: Uuid | null; anchor: Point };
 
 export type EngineEventType = EngineEvent['type'];
 export type EngineEventOf<T extends EngineEventType> = Extract<EngineEvent, { type: T }>;

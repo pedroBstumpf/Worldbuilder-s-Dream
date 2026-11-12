@@ -32,7 +32,8 @@ import { mapNameFromFile } from '@domain/maps';
 import { eventColor } from '@domain/events';
 import { isTick, type EntityKind, type PolygonVertex, type Uuid } from '@domain/models';
 import { MapImageError, readMapImage, type ProcessedMapImage } from '@engine/import/read-map-image';
-import type { LayerId, ToolId, ViewportInsets } from '@engine/map-engine';
+import { isEventActive } from '@domain/timeline';
+import type { EventMarkerInput, LayerId, ToolId, ViewportInsets } from '@engine/map-engine';
 import { DemoBadgeComponent } from '@shared/ui/demo-badge/demo-badge.component';
 import { DialogService } from '@shared/ui/dialog/dialog.service';
 import { IconButtonComponent } from '@shared/ui/icon-button/icon-button.component';
@@ -48,6 +49,7 @@ import {
 } from '../entities/create-entity-dialog.component';
 import { EntitySheetComponent } from '../entities/entity-sheet.component';
 import { CreateEventDialogComponent, ExtendRangeDialogComponent } from '../events/event-dialogs';
+import { EventPopoverComponent } from '../events/event-popover.component';
 import {
   EventSheetComponent,
   type EventPlacement,
@@ -97,6 +99,8 @@ const GAP = 8;
 const TIMELINE_BAR = 88;
 /** Espera antes de refletir o instante na URL (docs/06 §7). */
 const URL_TICK_DELAY_MS = 300;
+/** Espera antes de fechar o popover de evento quando o ponteiro sai do marcador. */
+const POPOVER_CLOSE_DELAY_MS = 250;
 
 /** Elementos onde Espaço e Enter já têm função própria. */
 const INTERACTIVE =
@@ -118,6 +122,7 @@ const ARROW_KEYS_OWNERS =
   imports: [
     DemoBadgeComponent,
     EntitySheetComponent,
+    EventPopoverComponent,
     EventSheetComponent,
     ExplorerPanelComponent,
     IconButtonComponent,
@@ -151,7 +156,12 @@ const ARROW_KEYS_OWNERS =
           [savedCamera]="cameraFor"
           [mapNames]="mapNames()"
           [time]="timeline.currentTick()"
+          [events]="eventMarks()"
+          [eventWindow]="timeline.eventWindow()"
           (cameraChange)="saveCamera($event)"
+          (pointPicked)="onPointPicked($event)"
+          (openEvent)="openEvent($event)"
+          (eventHover)="onEventHover($event)"
           (measure)="onMeasure($event)"
           (regionDrawn)="onRegionDrawn($event)"
           (openMap)="openMap($event)"
@@ -214,6 +224,7 @@ const ARROW_KEYS_OWNERS =
         [events]="eventMarks()"
         [nowTick]="store.world()?.nowTick ?? null"
         (eventClick)="goToEvent($event)"
+        (hover)="onEventHover($event ? { eventId: $event.id, anchor: $event } : null)"
         (createEvent)="createEvent()"
         (openCalendar)="openCalendar()"
       />
@@ -241,6 +252,20 @@ const ARROW_KEYS_OWNERS =
         (openEntity)="openEntity($event)"
         (goTo)="timeline.seek($event)"
         (outOfRange)="extendRange($event)"
+        (place)="startPlacing($event)"
+        (unplace)="unplaceEvent($event)"
+        (showOnMap)="showEventOnMap($event)"
+      />
+    }
+
+    @if (hoveredEvent(); as hovered) {
+      <wd-event-popover
+        [event]="hovered.event"
+        [anchor]="hovered.anchor"
+        (enter)="keepPopover()"
+        (leave)="onEventHover(null)"
+        (open)="openFromPopover(hovered.event.id)"
+        (goTo)="goToEvent(hovered.event.id)"
       />
     }
 
@@ -522,15 +547,28 @@ export default class WorldShellPage {
   });
 
   /** Eventos no trilho, com a cor do marcador já resolvida. */
-  protected readonly eventMarks = computed<TimelineEventMark[]>(() =>
+  /** Eventos no trilho e no mapa, com a cor do marcador já resolvida. */
+  protected readonly eventMarks = computed<(TimelineEventMark & EventMarkerInput)[]>(() =>
     this.events.sorted().map((event) => ({
       id: event.id,
       title: event.title,
       tickStart: event.tickStart,
       tickEnd: event.tickEnd,
       color: eventColor(event),
+      locationEntityId: event.locationEntityId,
     })),
   );
+
+  /** Evento a marcar no mapa com a ferramenta `place`. */
+  private readonly placingId = signal<Uuid | null>(null);
+  /** Marcador sob o ponteiro (mapa ou trilho), para o popover. */
+  private readonly hovered = signal<{ id: Uuid; anchor: Point } | null>(null);
+  protected readonly hoveredEvent = computed(() => {
+    const hovered = this.hovered();
+    const event = hovered ? this.events.byId().get(hovered.id) : undefined;
+    return hovered && event ? { event, anchor: hovered.anchor } : null;
+  });
+  private popoverTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly mapNames = computed(() =>
     Object.fromEntries(this.store.maps().map((m) => [m.id, m.name])),
@@ -551,6 +589,10 @@ export default class WorldShellPage {
         return points === 0
           ? this.mapText.hints.link
           : `${this.mapText.hints.link} ${this.mapText.hints.linkPoints(points)}`;
+      case 'place': {
+        const event = this.events.byId().get(this.placingId() ?? '');
+        return event ? TIME_STRINGS.events.place.hint(event.title) : null;
+      }
       default:
         return null;
     }
@@ -921,12 +963,76 @@ export default class WorldShellPage {
     }
   }
 
-  /** Marcador de evento no trilho: o cursor vai para o início do evento. */
+  /** Marcador de evento no trilho: o cursor vai ao início e o mapa, ao local (docs/06 §4). */
   protected goToEvent(id: Uuid): void {
     const event = this.events.byId().get(id);
     if (!event) return;
     this.timeline.pause();
     this.timeline.seek(event.tickStart);
+    const point = this.mapStore.eventPoint(id);
+    if (point) this.canvas()?.focusPoint(point);
+  }
+
+  /** "Marcar no mapa": o próximo clique (ou Enter, no centro) escolhe o ponto. */
+  protected startPlacing(id: Uuid): void {
+    this.placingId.set(id);
+    this.setTool('place');
+    this.canvas()?.focusMap();
+  }
+
+  protected async onPointPicked(point: Point): Promise<void> {
+    const id = this.placingId();
+    const event = id ? this.events.byId().get(id) : undefined;
+    this.placingId.set(null);
+    this.setTool('pan');
+    if (!event) return;
+    const text = TIME_STRINGS.events.place;
+    try {
+      await this.mapStore.placeEvent(event.id, point, event.tickStart);
+      // O marcador só aparece durante o evento: o cursor vai para o início dele.
+      if (!isEventActive(event, this.timeline.currentTick(), this.timeline.eventWindow())) {
+        this.timeline.seek(event.tickStart);
+      }
+      void this.announcer.announce(text.placed(event.title));
+    } catch {
+      this.toasts.show({ message: text.failed, kind: 'error' });
+    }
+  }
+
+  protected async unplaceEvent(id: Uuid): Promise<void> {
+    const event = this.events.byId().get(id);
+    const text = TIME_STRINGS.events.place;
+    try {
+      await this.mapStore.removeEventToken(id);
+      if (event) void this.announcer.announce(text.removed(event.title));
+    } catch {
+      this.toasts.show({ message: text.failed, kind: 'error' });
+    }
+  }
+
+  protected showEventOnMap(id: Uuid): void {
+    this.goToEvent(id);
+  }
+
+  /** Popover: abre no marcador e fecha um pouco depois de o ponteiro sair (dá tempo de alcançá-lo). */
+  protected onEventHover(hover: { eventId: Uuid | null; anchor: Point } | null): void {
+    if (hover?.eventId) {
+      this.keepPopover();
+      this.hovered.set({ id: hover.eventId, anchor: hover.anchor });
+      return;
+    }
+    if (this.popoverTimer) clearTimeout(this.popoverTimer);
+    this.popoverTimer = setTimeout(() => this.hovered.set(null), POPOVER_CLOSE_DELAY_MS);
+  }
+
+  protected keepPopover(): void {
+    if (this.popoverTimer) clearTimeout(this.popoverTimer);
+    this.popoverTimer = null;
+  }
+
+  protected openFromPopover(id: Uuid): void {
+    this.hovered.set(null);
+    this.openEvent(id);
   }
 
   /** Abre a ficha (do Explorar, da paleta, de uma menção ou citação). */
@@ -1173,7 +1279,8 @@ export default class WorldShellPage {
   }
 
   private registerShortcuts(): void {
-    const drawing = () => this.tool() === 'calibrate' || this.tool() === 'link';
+    const drawing = () =>
+      this.tool() === 'calibrate' || this.tool() === 'link' || this.tool() === 'place';
     const notOnControl = (event: KeyboardEvent) =>
       !(event.target instanceof Element && event.target.closest(INTERACTIVE));
     const hasMap = () => this.store.activeMap() !== null;
@@ -1209,7 +1316,7 @@ export default class WorldShellPage {
       },
       {
         key: 'enter',
-        when: (event) => this.tool() === 'link' && notOnControl(event),
+        when: (event) => (this.tool() === 'link' || this.tool() === 'place') && notOnControl(event),
         down: () => this.canvas()?.commitTool(),
       },
       { key: 'k', mod: true, inFields: true, down: () => void this.openPalette() },
