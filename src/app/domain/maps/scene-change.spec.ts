@@ -1,4 +1,4 @@
-import type { MapLink, MapToken, TokenKeyframe } from '../models';
+import type { MapAnnotation, MapLink, MapToken, TokenKeyframe } from '../models';
 import {
   applySceneChange,
   invertSceneChange,
@@ -39,10 +39,32 @@ function link(id: string): MapLink {
   return { id, worldId: 'w', mapId: 'm', targetMapId: 'x', polygon: [] };
 }
 
+function annotation(id: string, title: string | null = null): MapAnnotation {
+  return {
+    id,
+    worldId: 'w',
+    mapId: 'm',
+    kind: 'pin',
+    geometry: { x: 1, y: 2 },
+    style: {},
+    title,
+    entityId: null,
+    eventId: null,
+    tickStart: null,
+    tickEnd: null,
+    zIndex: 0,
+    version: 1,
+    createdBy: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+}
+
 const scene: SceneContent = {
   tokens: [token('t1')],
   keyframes: [keyframe('k1', 't1', 0), keyframe('k2', 't1', 10, 5)],
   links: [link('l1')],
+  annotations: [annotation('a1', 'Forte')],
 };
 
 /** Aplicar e depois desfazer devolve a cena original (a menos da ordem). */
@@ -54,6 +76,7 @@ function roundTrip(change: SceneChange): void {
   expect(byId(restored.tokens)).toEqual(byId(scene.tokens));
   expect(byId(restored.keyframes)).toEqual(byId(scene.keyframes));
   expect(byId(restored.links)).toEqual(byId(scene.links));
+  expect(byId(restored.annotations)).toEqual(byId(scene.annotations));
 }
 
 describe('applySceneChange', () => {
@@ -84,6 +107,17 @@ describe('applySceneChange', () => {
     const next = applySceneChange(scene, { putLinks: [link('l2')], removeLinks: ['l1'] });
     expect(next.links.map((l) => l.id)).toEqual(['l2']);
   });
+
+  it('puts, replaces and removes annotations', () => {
+    const next = applySceneChange(scene, {
+      putAnnotations: [annotation('a1', 'Torre'), annotation('a2')],
+    });
+    expect(next.annotations.map((a) => [a.id, a.title])).toEqual([
+      ['a1', 'Torre'],
+      ['a2', null],
+    ]);
+    expect(applySceneChange(next, { removeAnnotations: ['a1'] }).annotations).toHaveLength(1);
+  });
 });
 
 describe('invertSceneChange', () => {
@@ -107,6 +141,12 @@ describe('invertSceneChange', () => {
 
   it('undoes removed keyframes and links', () => {
     roundTrip({ removeKeyframes: ['k1'], removeLinks: ['l1'], putLinks: [link('l2')] });
+  });
+
+  it('undoes created, edited and erased annotations', () => {
+    roundTrip({ putAnnotations: [annotation('a2')] });
+    roundTrip({ putAnnotations: [annotation('a1', 'Torre')] });
+    roundTrip({ removeAnnotations: ['a1'] });
   });
 
   it('does not restore a keyframe twice when its token is also removed', () => {
