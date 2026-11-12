@@ -25,6 +25,7 @@ import { ShortcutService } from '@core/shortcuts/shortcut.service';
 import { DEMO_STRINGS } from '@core/strings/demo.strings';
 import { ENTITY_KIND_STRINGS, ENTITY_STRINGS } from '@core/strings/entity.strings';
 import { MAP_STRINGS } from '@core/strings/map.strings';
+import { TIME_STRINGS } from '@core/strings/time.strings';
 import { WORLD_STRINGS } from '@core/strings/world.strings';
 import type { Point } from '@domain/geometry';
 import { mapNameFromFile } from '@domain/maps';
@@ -69,6 +70,11 @@ import { EntityStore } from '../state/entity.store';
 import { MapStore } from '../state/map.store';
 import { TimelineStore } from '../state/timeline.store';
 import { WorldStore } from '../state/world.store';
+import type {
+  CalendarDialogComponent,
+  CalendarDialogData,
+  CalendarDialogResult,
+} from '../timeline/calendar-dialog.component';
 import { TimelineBarComponent, type TimelineEventMark } from '../timeline/timeline-bar.component';
 import { ExplorerPanelComponent } from './explorer-panel.component';
 import { LeftToolbarComponent, type ToggleableLayer } from './left-toolbar.component';
@@ -198,6 +204,7 @@ const ARROW_KEYS_OWNERS =
         [events]="eventMarks()"
         [nowTick]="store.world()?.nowTick ?? null"
         (eventClick)="goToEvent($event)"
+        (openCalendar)="openCalendar()"
       />
     }
 
@@ -818,6 +825,42 @@ export default class WorldShellPage {
       await this.store.renameMap(id, next);
     } catch {
       this.toasts.show({ message: this.mapText.rename.failed, kind: 'error' });
+    }
+  }
+
+  /** Calendário do mundo, faixa e "agora da narrativa" (botão da linha do tempo). */
+  protected async openCalendar(): Promise<void> {
+    const world = this.store.world();
+    if (!world) return;
+    // Sob demanda: o editor traz o Zod, que o resto da tela não usa.
+    const { CalendarDialogComponent: dialog } =
+      await import('../timeline/calendar-dialog.component');
+    const ref = this.dialogs.open<
+      CalendarDialogComponent,
+      CalendarDialogData,
+      CalendarDialogResult
+    >(dialog, {
+      data: {
+        definition: this.store.calendarDefinition(),
+        timeStart: world.timeStart,
+        timeEnd: world.timeEnd,
+        nowTick: world.nowTick,
+        currentTick: this.timeline.currentTick(),
+      },
+      autoFocus: 'first-tabbable',
+    });
+    const result = await firstValueFrom(ref.closed);
+    if (!result) return;
+    const text = TIME_STRINGS.calendar;
+    try {
+      if (result.definition) await this.store.saveCalendar(result.definition);
+      const { timeStart, timeEnd, nowTick } = result;
+      if (timeStart !== world.timeStart || timeEnd !== world.timeEnd || nowTick !== world.nowTick) {
+        await this.store.updateTime({ timeStart, timeEnd, nowTick });
+      }
+      this.toasts.show({ message: text.saved, kind: 'success' });
+    } catch {
+      this.toasts.show({ message: text.failed, kind: 'error' });
     }
   }
 

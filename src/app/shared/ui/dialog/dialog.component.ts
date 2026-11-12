@@ -60,7 +60,9 @@ let nextFallbackId = 0;
     </div>
   `,
   host: {
-    class: 'relative block w-lg max-w-full rounded-panel',
+    class: 'relative block max-w-full rounded-panel',
+    '[class.w-lg]': '!wide()',
+    '[class.w-3xl]': 'wide()',
     '[class.wd-panel]': "surface() === 'surface'",
     '[class.wd-page]': "surface() === 'page'",
     '[class.p-6]': '!ornate()',
@@ -144,6 +146,8 @@ export class DialogComponent {
   readonly ornate = input(false, { transform: booleanAttribute });
   /** Mostra o botão de fechar no canto. */
   readonly closable = input(true, { transform: booleanAttribute });
+  /** Largura maior, para formulários extensos (ex.: calendário do mundo). */
+  readonly wide = input(false, { transform: booleanAttribute });
 
   protected readonly corners = CORNERS;
   protected readonly strings = inject(WD_UI_STRINGS);
