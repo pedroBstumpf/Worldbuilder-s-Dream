@@ -65,12 +65,12 @@ export function tabPanelId(prefix: string, id: string): string {
 
     .tab {
       display: flex;
-      flex: 1 1 0;
+      flex: 1 1 auto;
       flex-direction: column;
       gap: 2px;
       align-items: center;
       min-inline-size: 0;
-      padding: 6px 4px 8px;
+      padding: 6px 2px 8px;
       font-family: var(--font-sans);
       font-size: 0.75rem;
       color: var(--wd-control-muted);
