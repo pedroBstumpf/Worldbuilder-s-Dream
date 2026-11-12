@@ -10,6 +10,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { MAP_STRINGS } from '@core/strings/map.strings';
 import { TIME_STRINGS } from '@core/strings/time.strings';
 import type { Tick, Uuid } from '@domain/models';
 import {
@@ -23,6 +24,17 @@ import {
 } from '@domain/timeline';
 import { IconButtonComponent } from '@shared/ui/icon-button/icon-button.component';
 import { TimelineStore } from '../state/timeline.store';
+
+/** Início de uma versão da imagem do mapa (docs/06 › Versões da imagem no tempo). */
+export interface TimelineImageVersion {
+  id: Uuid;
+  tick: Tick;
+  /** Miniatura no popover; `null` = sem imagem ainda. */
+  url: string | null;
+}
+
+/** Espera antes de fechar o popover da versão (dá tempo de levar o ponteiro até ele). */
+const VERSION_POPOVER_CLOSE_MS = 150;
 
 /** Evento como aparece no trilho. `color` nulo = ouro. */
 export interface TimelineEventMark {
@@ -178,6 +190,50 @@ type Gesture =
             </g>
           }
         </svg>
+
+        @for (version of visibleVersions(); track version.id) {
+          <button
+            type="button"
+            class="version wd-focus"
+            [attr.data-version-id]="version.id"
+            [attr.aria-label]="versionText.marker(version.date)"
+            [attr.aria-expanded]="openVersionId() === version.id"
+            [style.transform]="'translateX(' + version.x + 'px)'"
+            (pointerdown)="$event.stopPropagation()"
+            (pointerenter)="openVersion(version.id)"
+            (pointerleave)="scheduleVersionClose()"
+            (focus)="openVersion(version.id)"
+            (blur)="scheduleVersionClose()"
+            (keydown.escape)="closeVersion()"
+            (click)="goToVersion(version.tick)"
+          ></button>
+        }
+        @if (openVersionMark(); as version) {
+          <div
+            class="version-popover wd-panel"
+            role="group"
+            [attr.aria-label]="versionText.marker(version.date)"
+            [style.transform]="'translateX(' + version.x + 'px)'"
+            (pointerdown)="$event.stopPropagation()"
+            (pointerenter)="cancelVersionClose()"
+            (pointerleave)="scheduleVersionClose()"
+            (focusin)="cancelVersionClose()"
+            (focusout)="scheduleVersionClose()"
+          >
+            @if (version.url; as url) {
+              <img [src]="url" alt="" decoding="async" />
+            }
+            <p class="font-book text-base">{{ version.date }}</p>
+            <button
+              type="button"
+              class="go wd-focus"
+              (click)="goToVersion(version.tick)"
+              (keydown.escape)="closeVersion()"
+            >
+              {{ versionText.goTo }}
+            </button>
+          </div>
+        }
 
         @if (cursorInView()) {
           <div
@@ -386,6 +442,69 @@ type Gesture =
       stroke-width: 2;
     }
 
+    /* Início de uma versão da imagem: pequena página com o canto dobrado, sobre o trilho. */
+    .version {
+      position: absolute;
+      /* Acima do cursor (que começa em 24 px), para não ficar coberto por ele. */
+      inset-block-start: 9px;
+      inset-inline-start: -6px;
+      inline-size: 12px;
+      block-size: 14px;
+      padding: 0;
+      cursor: pointer;
+      background: linear-gradient(
+        225deg,
+        var(--couro-950) 0 3px,
+        var(--ouro-300) 3px 4.5px,
+        var(--pergaminho-200) 4.5px
+      );
+      border: 1px solid var(--ouro-500);
+      border-radius: 1px;
+    }
+
+    .version:hover,
+    .version[aria-expanded='true'] {
+      border-color: var(--ouro-200);
+      box-shadow: 0 0 6px 1px var(--wd-accent-glow);
+    }
+
+    .version-popover {
+      position: absolute;
+      inset-block-end: calc(100% + 10px);
+      inset-inline-start: -88px;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-start;
+      inline-size: 176px;
+      padding: 8px;
+      cursor: default;
+    }
+
+    .version-popover img {
+      display: block;
+      inline-size: 100%;
+      aspect-ratio: 3 / 2;
+      object-fit: cover;
+      border: 1px solid var(--ouro-500);
+    }
+
+    .go {
+      padding: 2px 8px;
+      font-family: var(--font-sans);
+      font-size: 0.8125rem;
+      color: var(--wd-accent);
+      cursor: pointer;
+      background: none;
+      border: 1px solid var(--wd-divider);
+      border-radius: var(--wd-radius-control);
+    }
+
+    .go:hover {
+      border-color: var(--wd-rule-strong);
+    }
+
     .cursor-line {
       position: absolute;
       inset-block: 0;
@@ -439,6 +558,8 @@ export class TimelineBarComponent {
   readonly nowTick = input<Tick | null>(null);
   /** Instantes das posições da entidade selecionada (pequenos traços sob o trilho). */
   readonly keyframeTicks = input<readonly Tick[]>([]);
+  /** Versões da imagem do mapa aberto (marcadores de página no trilho). */
+  readonly imageVersions = input<readonly TimelineImageVersion[]>([]);
 
   readonly eventClick = output<Uuid>();
   readonly hover = output<TimelineEventHover | null>();
@@ -449,6 +570,9 @@ export class TimelineBarComponent {
 
   protected readonly store = inject(TimelineStore);
   protected readonly text = TIME_STRINGS.timeline;
+  protected readonly versionText = MAP_STRINGS.versions;
+  protected readonly openVersionId = signal<Uuid | null>(null);
+  private versionCloseTimer: ReturnType<typeof setTimeout> | undefined;
   protected readonly height = HEIGHT;
   protected readonly trackY = TRACK_Y;
   protected readonly Math = Math;
@@ -476,6 +600,18 @@ export class TimelineBarComponent {
     this.keyframeTicks()
       .map((tick) => this.x(tick))
       .filter((x) => x >= 0 && x <= this.width()),
+  );
+  protected readonly visibleVersions = computed(() =>
+    this.imageVersions()
+      .map((version) => ({
+        ...version,
+        x: this.x(version.tick),
+        date: this.store.calendar().format(version.tick),
+      }))
+      .filter((version) => version.x >= 0 && version.x <= this.width()),
+  );
+  protected readonly openVersionMark = computed(
+    () => this.visibleVersions().find((v) => v.id === this.openVersionId()) ?? null,
   );
   protected readonly nowX = computed(() => {
     const now = this.nowTick();
@@ -544,6 +680,7 @@ export class TimelineBarComponent {
 
   constructor() {
     const destroyRef = inject(DestroyRef);
+    destroyRef.onDestroy(() => clearTimeout(this.versionCloseTimer));
     afterNextRender(() => {
       const area = this.area().nativeElement;
       const observer = new ResizeObserver(() => {
@@ -636,6 +773,35 @@ export class TimelineBarComponent {
     }
     this.store.pause();
     this.store.setTick(this.tickAt(event));
+  }
+
+  protected openVersion(id: Uuid): void {
+    this.cancelVersionClose();
+    this.openVersionId.set(id);
+  }
+
+  protected scheduleVersionClose(): void {
+    this.cancelVersionClose();
+    this.versionCloseTimer = setTimeout(
+      () => this.openVersionId.set(null),
+      VERSION_POPOVER_CLOSE_MS,
+    );
+  }
+
+  protected cancelVersionClose(): void {
+    clearTimeout(this.versionCloseTimer);
+  }
+
+  protected closeVersion(): void {
+    this.cancelVersionClose();
+    this.openVersionId.set(null);
+  }
+
+  /** "Ir para a data" (ou clique no marcador): o cursor vai ao início da versão. */
+  protected goToVersion(tick: Tick): void {
+    this.store.pause();
+    this.store.seek(tick);
+    this.closeVersion();
   }
 
   protected leave(): void {
