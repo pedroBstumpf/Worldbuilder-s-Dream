@@ -1,5 +1,6 @@
 import type { RichTextDoc } from '../models/rich-text';
 import { ALIAS_MAX_LENGTH, normalizeLabels, splitLabels } from './aliases';
+import { portraitCrop } from './portrait';
 import { isEmptyRichText, mentionedEntityIds, richTextToPlain } from './rich-text';
 
 const doc: RichTextDoc = {
@@ -64,5 +65,12 @@ describe('labels (aliases and tags)', () => {
 
   it('splits typed text by commas and semicolons', () => {
     expect(splitLabels('a, b;c')).toEqual(['a', ' b', 'c']);
+  });
+});
+
+describe('portrait crop', () => {
+  it('crops a centered square, biased up, without enlarging', () => {
+    expect(portraitCrop(1000, 2000)).toEqual({ sx: 0, sy: 300, side: 1000, size: 512 });
+    expect(portraitCrop(300, 200)).toEqual({ sx: 50, sy: 0, side: 200, size: 200 });
   });
 });
