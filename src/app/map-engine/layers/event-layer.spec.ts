@@ -9,8 +9,14 @@ const PALETTE: EnginePalette = {
   goldLight: '#e8c97a',
   goldDark: '#b8903f',
   leather: '#3a2618',
+  leatherDark: '#2b1c12',
   parchment: '#f4ead3',
+  parchmentDark: '#c9b48e',
   danger: '#e07a5f',
+  bronze: '#9c7a4e',
+  copper: '#8c5a3c',
+  brass: '#b5a27a',
+  fontBook: 'serif',
 };
 
 function event(
