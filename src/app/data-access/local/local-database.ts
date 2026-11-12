@@ -4,6 +4,7 @@ import type {
   Entity,
   EntityMention,
   MapAnnotation,
+  MapImageVersion,
   MapLink,
   MapToken,
   Profile,
@@ -64,6 +65,7 @@ export interface LocalSchema extends DBSchema {
   assetFiles: { key: Uuid; value: LocalAssetFile };
   maps: { key: Uuid; value: WorldMap; indexes: { byWorld: Uuid } };
   mapLinks: { key: Uuid; value: MapLink; indexes: { byMap: Uuid } };
+  mapImageVersions: { key: Uuid; value: MapImageVersion; indexes: { byMap: Uuid } };
   entities: { key: Uuid; value: Entity; indexes: { byWorld: Uuid } };
   events: { key: Uuid; value: WorldEvent; indexes: { byWorld: Uuid } };
   mapTokens: {
@@ -85,7 +87,7 @@ export interface LocalSchema extends DBSchema {
  * Versão do schema local. Nova tabela ou índice: incremente e acrescente um passo em
  * `upgrade` (nunca altere um passo antigo; os navegadores já rodaram).
  */
-export const LOCAL_DB_VERSION = 3;
+export const LOCAL_DB_VERSION = 4;
 
 export function openLocalDatabase(name: string): Promise<IDBPDatabase<LocalSchema>> {
   return openDB<LocalSchema>(name, LOCAL_DB_VERSION, {
@@ -123,6 +125,11 @@ export function openLocalDatabase(name: string): Promise<IDBPDatabase<LocalSchem
         });
         mentions.createIndex('bySource', ['sourceKind', 'sourceId']);
         mentions.createIndex('byTarget', 'targetEntityId');
+      }
+      if (oldVersion < 4) {
+        // O `unique (map_id, tick_start) where deleted_at is null` é parcial: o adaptador
+        // confere na transação, porque um índice único do IndexedDB valeria para a lixeira.
+        db.createObjectStore('mapImageVersions', { keyPath: 'id' }).createIndex('byMap', 'mapId');
       }
     },
   });

@@ -225,4 +225,75 @@ describe('LocalMapRepository', () => {
       ).rejects.toMatchObject({ code: 'not_found' });
     });
   });
+
+  describe('image versions', () => {
+    const draft = (map: WorldMap, tickStart: number) => ({
+      id: crypto.randomUUID(),
+      worldId,
+      mapId: map.id,
+      imageAssetId: crypto.randomUUID(),
+      tickStart,
+    });
+
+    it('lists the versions in the scene in tick order, without the trash', async () => {
+      const map = await createMap();
+      const late = await maps.createImageVersion(draft(map, 500));
+      const early = await maps.createImageVersion(draft(map, 100));
+      const trashed = await maps.createImageVersion(draft(map, 300));
+      await maps.moveImageVersionToTrash(trashed.id, 1);
+
+      const scene = await maps.getScene(map.id);
+
+      expect(scene?.imageVersions.map((v) => v.id)).toEqual([early.id, late.id]);
+      expect(early).toMatchObject({ version: 1, deletedAt: null, createdBy: expect.any(String) });
+    });
+
+    it('refuses two live versions at the same tick, but not one in the trash', async () => {
+      const map = await createMap();
+      const first = await maps.createImageVersion(draft(map, 100));
+
+      await expect(maps.createImageVersion(draft(map, 100))).rejects.toMatchObject({
+        code: 'conflict',
+      });
+      const other = await maps.createImageVersion(draft(map, 200));
+      await expect(maps.updateImageVersion(other.id, { tickStart: 100 }, 1)).rejects.toMatchObject({
+        code: 'conflict',
+      });
+
+      await maps.moveImageVersionToTrash(first.id, 1);
+      const reused = await maps.createImageVersion(draft(map, 100));
+      expect(reused.tickStart).toBe(100);
+      await expect(maps.restoreImageVersion(first.id)).rejects.toMatchObject({ code: 'conflict' });
+    });
+
+    it('updates with the version seen and restores from the trash', async () => {
+      const map = await createMap();
+      const created = await maps.createImageVersion(draft(map, 100));
+
+      const moved = await maps.updateImageVersion(created.id, { tickStart: 150 }, 1);
+      expect(moved).toMatchObject({ tickStart: 150, version: 2 });
+      await expect(maps.updateImageVersion(created.id, { tickStart: 1 }, 1)).rejects.toMatchObject({
+        code: 'conflict',
+      });
+      await expect(
+        maps.updateImageVersion(created.id, { tickStart: 1.5 }, 2),
+      ).rejects.toMatchObject({ code: 'validation' });
+
+      await maps.moveImageVersionToTrash(created.id, 2);
+      await expect(maps.updateImageVersion(created.id, {}, 3)).rejects.toMatchObject({
+        code: 'not_found',
+      });
+      const restored = await maps.restoreImageVersion(created.id);
+      expect(restored).toMatchObject({ deletedAt: null, version: 4 });
+    });
+
+    it('needs a live map', async () => {
+      const map = await createMap();
+      await maps.moveToTrash(map.id, 1);
+
+      await expect(maps.createImageVersion(draft(map, 0))).rejects.toMatchObject({
+        code: 'not_found',
+      });
+    });
+  });
 });

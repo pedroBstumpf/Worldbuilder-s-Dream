@@ -1,6 +1,8 @@
 import { inject, Injectable } from '@angular/core';
+import { sortImageVersions } from '@domain/maps';
 import type {
   MapAnnotation,
+  MapImageVersion,
   MapLink,
   MapToken,
   TokenKeyframe,
@@ -14,12 +16,21 @@ import {
   type MapAnnotationInput,
   type MapAnnotationPatch,
   type MapDraft,
+  type MapImageVersionDraft,
+  type MapImageVersionPatch,
   type MapPatch,
   type MapScene,
   type MapTokenInput,
   type TokenKeyframeInput,
 } from '@domain/ports';
-import { checkAnnotation, checkKeyframe, checkLink, checkMap, checkToken } from './local-checks';
+import {
+  checkAnnotation,
+  checkImageVersion,
+  checkKeyframe,
+  checkLink,
+  checkMap,
+  checkToken,
+} from './local-checks';
 import { LocalDatabase } from './local-database';
 import { definedOnly, inTransaction, requireUserId, timestamp } from './local-transaction';
 import { isLive, TrashableTable } from './trashable-table';
@@ -85,20 +96,29 @@ export class LocalMapRepository extends MapRepository {
       'tokenKeyframes',
       'mapAnnotations',
       'mapLinks',
+      'mapImageVersions',
     ]);
     const map = await tx.objectStore('maps').get(mapId);
     if (!isLive(map)) return null;
-    const [tokens, annotations, links] = await Promise.all([
+    const [tokens, annotations, links, versions] = await Promise.all([
       tx.objectStore('mapTokens').index('byMap').getAll(mapId),
       tx.objectStore('mapAnnotations').index('byMap').getAll(mapId),
       tx.objectStore('mapLinks').index('byMap').getAll(mapId),
+      tx.objectStore('mapImageVersions').index('byMap').getAll(mapId),
     ]);
     const byTokenTick = tx.objectStore('tokenKeyframes').index('byTokenTick');
     const keyframes = await Promise.all(
       tokens.map((token) => byTokenTick.getAll(keyframesOf(token.id))),
     );
     annotations.sort((a, b) => a.zIndex - b.zIndex || a.createdAt.localeCompare(b.createdAt));
-    return { map, tokens, keyframes: keyframes.flat(), annotations, links };
+    return {
+      map,
+      tokens,
+      keyframes: keyframes.flat(),
+      annotations,
+      links,
+      imageVersions: sortImageVersions(versions.filter(isLive)),
+    };
   }
 
   /** Cria ou substitui o token; um segundo token do mesmo alvo no mapa é `conflict`. */
@@ -215,11 +235,101 @@ export class LocalMapRepository extends MapRepository {
     return this.remove('mapLinks', id);
   }
 
+  override async createImageVersion(draft: MapImageVersionDraft): Promise<MapImageVersion> {
+    const userId = await requireUserId(this.auth);
+    const now = timestamp();
+    const version: MapImageVersion = {
+      ...draft,
+      createdBy: userId,
+      deletedAt: null,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    checkImageVersion(version);
+    const db = await this.database.ready();
+    return inTransaction(db, ['maps', 'mapImageVersions'], async (tx) => {
+      await requireLiveMap(tx.objectStore('maps'), draft.mapId);
+      const versions = tx.objectStore('mapImageVersions');
+      await requireFreeTick(versions, version);
+      await versions.add(version);
+      return version;
+    });
+  }
+
+  override updateImageVersion(
+    id: Uuid,
+    patch: MapImageVersionPatch,
+    expectedVersion: number,
+  ): Promise<MapImageVersion> {
+    const changes = definedOnly(patch);
+    return this.changeImageVersion(id, (row) => {
+      if (!isLive(row)) throw new AppError('not_found');
+      if (row.version !== expectedVersion) throw new AppError('conflict');
+      return { ...row, ...changes };
+    });
+  }
+
+  override async moveImageVersionToTrash(id: Uuid, expectedVersion: number): Promise<void> {
+    await this.changeImageVersion(id, (row, now) => {
+      if (!isLive(row)) throw new AppError('not_found');
+      if (row.version !== expectedVersion) throw new AppError('conflict');
+      return { ...row, deletedAt: now };
+    });
+  }
+
+  /** Tira da lixeira; se outra versão ocupou o mesmo instante, `conflict`. */
+  override restoreImageVersion(id: Uuid): Promise<MapImageVersion> {
+    return this.changeImageVersion(id, (row) => ({ ...row, deletedAt: null }));
+  }
+
+  /**
+   * Lê, aplica e grava uma versão numa transação, com o `+1` de `version`, o
+   * `updated_at` e a unicidade de `(mapId, tickStart)` entre as que não estão na lixeira.
+   */
+  private async changeImageVersion(
+    id: Uuid,
+    apply: (row: MapImageVersion, now: string) => MapImageVersion,
+  ): Promise<MapImageVersion> {
+    const db = await this.database.ready();
+    return inTransaction(db, ['mapImageVersions'], async (tx) => {
+      const versions = tx.objectStore('mapImageVersions');
+      const row = await versions.get(id);
+      if (!row) throw new AppError('not_found');
+      const now = timestamp();
+      const next: MapImageVersion = {
+        ...apply(row, now),
+        id: row.id,
+        mapId: row.mapId,
+        worldId: row.worldId,
+        createdAt: row.createdAt,
+        version: row.version + 1,
+        updatedAt: now,
+      };
+      checkImageVersion(next);
+      if (next.deletedAt === null) await requireFreeTick(versions, next);
+      await versions.put(next);
+      return next;
+    });
+  }
+
   /** Apagar o que não existe não é erro (um `delete` sem linhas no Postgres também não). */
   private async remove(store: MapContentStore, id: Uuid): Promise<void> {
     const db = await this.database.ready();
     await inTransaction(db, [store], (tx) => tx.objectStore(store).delete(id));
   }
+}
+
+/** O índice único parcial `(map_id, tick_start) where deleted_at is null`. */
+async function requireFreeTick(
+  versions: { index(name: 'byMap'): { getAll(mapId: Uuid): Promise<MapImageVersion[]> } },
+  version: MapImageVersion,
+): Promise<void> {
+  const siblings = await versions.index('byMap').getAll(version.mapId);
+  const taken = siblings.some(
+    (other) => isLive(other) && other.id !== version.id && other.tickStart === version.tickStart,
+  );
+  if (taken) throw new AppError('conflict', 'já há uma versão da imagem neste instante');
 }
 
 /** A chave estrangeira para `maps`, que no modo local também recusa mapa na lixeira. */
