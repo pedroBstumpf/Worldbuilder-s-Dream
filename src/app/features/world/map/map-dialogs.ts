@@ -245,3 +245,47 @@ export class LinkTargetDialogComponent {
   );
   protected readonly selected = signal<Uuid | null>(this.options()[0]?.map.id ?? null);
 }
+
+/** O que remover com `Del` (docs/06 §3): a posição em vigor ou o token inteiro. */
+export type RemoveTokenChoice = 'keyframe' | 'token';
+
+export interface RemoveTokenData {
+  /** Nome do token (ou "n tokens selecionados"). */
+  name: string;
+  /** Data da posição em vigor; `null` quando não há uma só posição a remover. */
+  keyframeDate: string | null;
+}
+
+/** Confirmação do `Del` no mapa: remover só a posição ou o token com todas as posições. */
+@Component({
+  selector: 'wd-remove-token-dialog',
+  imports: [ButtonComponent, DialogComponent],
+  template: `
+    <wd-dialog [title]="text.title">
+      <p class="font-sans text-base">{{ text.question(data.name) }}</p>
+      <button wd-button wdDialogAction variant="ghost" type="button" (click)="ref.close()">
+        {{ text.cancel }}
+      </button>
+      @if (data.keyframeDate; as date) {
+        <button
+          wd-button
+          wdDialogAction
+          variant="secondary"
+          type="button"
+          cdkFocusInitial
+          (click)="ref.close('keyframe')"
+        >
+          {{ text.keyframe(date) }}
+        </button>
+      }
+      <button wd-button wdDialogAction variant="danger" type="button" (click)="ref.close('token')">
+        {{ text.token }}
+      </button>
+    </wd-dialog>
+  `,
+})
+export class RemoveTokenDialogComponent {
+  protected readonly ref = inject<DialogRef<RemoveTokenChoice>>(DialogRef);
+  protected readonly data = inject<RemoveTokenData>(DIALOG_DATA);
+  protected readonly text = MAP_STRINGS.tokens.removeDialog;
+}
