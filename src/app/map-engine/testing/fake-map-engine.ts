@@ -25,6 +25,8 @@ export class FakeMapEngine implements MapEngine {
   scene: MapScene | null = null;
   image: MapImageSource | null = null;
   tick: Tick = 0;
+  /** O último `setTime` pediu troca de imagem sem fade. */
+  instantTime = false;
   tool: ToolId = 'pan';
   selection: Uuid[] = [];
   insets: ViewportInsets = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -60,7 +62,8 @@ export class FakeMapEngine implements MapEngine {
     this.patches.push(patch);
   }
 
-  setTime(tick: Tick): void {
+  setTime(tick: Tick, instant = false): void {
+    this.instantTime = instant;
     this.tick = tick;
   }
 

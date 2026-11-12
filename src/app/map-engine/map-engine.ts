@@ -111,6 +111,14 @@ export interface TokenLook {
   portraitUrl: string | null;
 }
 
+/** Versão da imagem do mapa a partir de um instante, com a URL da imagem já resolvida. */
+export interface ImageVersionInput {
+  id: Uuid;
+  tickStart: Tick;
+  /** `null` = imagem indisponível; fica a anterior. */
+  url: string | null;
+}
+
 /** Mudanças incrementais vindas das stores. */
 export type ScenePatch =
   | { type: 'links'; links: MapLink[] }
@@ -120,7 +128,12 @@ export type ScenePatch =
   /** Aparência das entidades do mundo; vale para todos os mapas, como os eventos. */
   | { type: 'looks'; looks: TokenLook[] }
   /** Pinos, traços, regiões, rótulos e medições do mapa (docs/06 §5). */
-  | { type: 'annotations'; annotations: MapAnnotation[] };
+  | { type: 'annotations'; annotations: MapAnnotation[] }
+  /**
+   * Versões da imagem do mapa `mapId` (docs/06 › Versões da imagem no tempo). Pode chegar
+   * antes da cena terminar de carregar; versões de outro mapa são ignoradas.
+   */
+  | { type: 'imageVersions'; mapId: Uuid; versions: ImageVersionInput[] };
 
 export type EngineEvent =
   /** Fim do arraste de um token; `correctPrevious` (Alt) corrige o keyframe em vigor. */
@@ -202,7 +215,11 @@ export interface MapEngine {
   /** Mudanças incrementais vindas da store. */
   applyPatch(patch: ScenePatch): void;
 
-  setTime(tick: Tick): void;
+  /**
+   * Instante da linha do tempo. `instant` troca a versão da imagem sem fade (play acima
+   * de 1 ano/s); com movimento reduzido, a troca é sempre imediata.
+   */
+  setTime(tick: Tick, instant?: boolean): void;
   setTool(tool: ToolId): void;
   /** Enter: fecha o polígono em desenho. */
   commitTool(): void;

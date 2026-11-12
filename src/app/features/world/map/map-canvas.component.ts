@@ -31,6 +31,7 @@ import {
   LAYER_IDS,
   type Camera,
   type EventMarkerInput,
+  type ImageVersionInput,
   type LayerId,
   type MapEngine,
   type MapImageSource,
@@ -210,6 +211,12 @@ export class MapCanvasComponent {
   readonly mapNames = input<Record<Uuid, string>>({});
   /** Instante da linha do tempo (docs/06 §1: `engine.setTime(timeline.currentTick())`). */
   readonly time = input<Tick>(0);
+  /** Troca a versão da imagem sem fade (play acima de 1 ano/s). */
+  readonly instantTime = input(false);
+  /** Versões da imagem do mapa da cena, com as URLs resolvidas (docs/06 §1). */
+  readonly imageVersions = input<readonly ImageVersionInput[]>([]);
+  /** Só o id: as versões não são reenviadas a cada edição da cena. */
+  private readonly sceneMapId = computed(() => this.scene()?.map.id ?? null);
   /** Eventos do mundo (marcadores) e a janela dos pontuais. */
   readonly events = input<readonly EventMarkerInput[]>([]);
   readonly eventWindow = input<Tick>(0);
@@ -451,7 +458,13 @@ export class MapCanvasComponent {
       for (const layer of LAYER_IDS) engine?.setLayerVisible(layer, !hidden.includes(layer));
     });
     effect(() => this.engine()?.setInsets(this.insets()));
-    effect(() => this.engine()?.setTime(this.time()));
+    effect(() => this.engine()?.setTime(this.time(), untracked(this.instantTime)));
+    effect(() => {
+      const engine = this.engine();
+      const mapId = this.sceneMapId();
+      const versions = [...this.imageVersions()];
+      if (engine && mapId) engine.applyPatch({ type: 'imageVersions', mapId, versions });
+    });
     effect(() => this.engine()?.applyPatch({ type: 'looks', looks: [...this.looks()] }));
     effect(() => this.engine()?.setSelection([...this.selection()]));
     effect(() => this.engine()?.setTrails([...this.trails()]));
