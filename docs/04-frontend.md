@@ -97,7 +97,7 @@ Todos em `shared/ui/`, standalone, `OnPush`, estilizados com Tailwind e tokens `
 | `wd-button` / `wd-icon-button` | `<button>` nativo | seletor de atributo (`<button wd-button variant="primary">`); variantes `primary` (ouro), `secondary`, `ghost`, `danger` (lacre), tamanhos `sm`/`md`. `wd-icon-button` exige `label`, que vira `aria-label` e tooltip (sem ele o build falha); `pressed` torna o botão alternável (`aria-pressed`, fundo ouro) |
 | `wdTooltip` (diretiva) | CDK Overlay + `AriaDescriber` | painel de couro, texto em caixa-alta (Cinzel); abre no hover (400 ms) e no foco por teclado, fecha com Esc; o ponteiro pode passar sobre o balão; não descreve quando repete o `aria-label` |
 | `wd-dialog` + `DialogService` | `@angular/cdk/dialog` | `DialogService.open(Componente, { data })`; o componente usa `<wd-dialog title surface ornate>` e marca as ações com `wdDialogAction`. Foco preso e restaurado, `aria-labelledby` no título, Esc fecha (salvo `disableClose`); superfície couro ou pergaminho; cantoneiras com `ornate` |
-| `wd-menu` | `@angular/cdk/menu` | menus de contexto de token e "⋯" |
+| `wd-menu` | `@angular/cdk/menu` | menus de contexto de token e "⋯"; por enquanto, as classes globais `.wd-menu`, `.wd-menu-item` e `.wd-menu-heading` sobre `cdkMenu`. O menu do token (`wd-token-menu`) abre com `CdkContextMenuTrigger.open({ x, y })` no `contextmenu` nativo (antes dele, o CDK o fecharia como clique fora) |
 | `wd-select` / `wd-combobox` | CDK Listbox + Overlay | escolha de tipo, local, calendário |
 | `wd-tabs` | roles `tablist`/`tab`/`tabpanel`, foco itinerante | abas do Explorar (ícone + rótulo) e da ficha (texto); ativação automática, setas, Home e End; `tabId()`/`tabPanelId()` ligam aba e painel |
 | `wd-text-field` / `wd-textarea` | `<input>`/`<textarea>` nativos | rótulo sempre visível; erro abaixo do campo |
@@ -122,10 +122,11 @@ Acompanhar o **Angular Aria** (componentes acessíveis sem estilo do próprio An
 | `WorldStore` | rota `w/:worldId` | mundo, calendário, faixa do mundo, mapas (árvore, mapa ativo, importação e envio em segundo plano); depois membros, Docs |
 | `EntityStore` | rota `w/:worldId` | entidades do mundo, ficha aberta (`?sel=`), retratos, status de gravação e o índice de busca (`WorldSearch`, que inclui os eventos) |
 | `EventStore` | rota `w/:worldId` | eventos da linha do tempo, ficha do evento aberta (também em `?sel=`), status de gravação |
-| `MapStore` | rota `w/:worldId` | cena do mapa ativo (links e pontos dos eventos; depois tokens de entidade, anotações), seleção |
+| `MapStore` | rota `w/:worldId` | cena do mapa ativo (links, pontos dos eventos, tokens e keyframes; anotações no M5) e seleção de tokens. Toda edição é um `SceneChange` (o que pôr e o que remover, `domain/maps`): aplicada na hora, gravada e registrada no `HistoryStore` com a inversa; se a gravação falha, desfaz o que passou e relê a cena |
 | `TimelineStore` | rota `w/:worldId` | `currentTick`, faixa visível, zoom, `isPlaying`, velocidade, repetição |
 | `ToolStore` | rota `w/:worldId` | ferramenta ativa e opções |
-| `HistoryStore` | rota `w/:worldId` | desfazer/refazer (padrão Command) |
+| `HistoryStore` | rota `w/:worldId` | desfazer/refazer das edições do mapa (padrão Command, até 100): edições, desfazer e refazer rodam em fila; esquece tudo ao trocar de mapa. `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z` e `Ctrl+Y` anunciam o que foi desfeito |
+| `TokenActions` | rota `w/:worldId` (serviço) | ações de token vindas do mapa, do menu e da ficha: escolhe o instante (snap), chama a `MapStore`, anuncia o resultado e avisa falhas |
 
 ```ts
 export const MapStore = signalStore(
@@ -149,10 +150,10 @@ Regras:
 - Barras como overlays com `pointer-events` só nelas; o resto passa eventos ao canvas.
 - Larguras redimensionáveis (CDK Drag no eixo X; setas na alça, que é um `separator`), salvas em `profiles.ui_prefs`.
 - O motor recebe a área coberta pelas barras (`setInsets`) para enquadrar o mapa na parte livre.
-- **Explorar** (M2): abas Personagens, Locais, **Acervo** (facções, itens e notas, com filtro por tipo), Eventos (por data, com a data no calendário do mundo; abre a ficha do evento) e História (vazia até os Google Docs). Filtro pela busca do mundo (mostra o apelido que casou), botão `+` com o tipo da aba (na aba Eventos, "Novo evento") e lista virtual. As linhas de entidade são arrastáveis (`application/x-wd-entity`); o mapa aceita o arraste no M4.
+- **Explorar** (M2): abas Personagens, Locais, **Acervo** (facções, itens e notas, com filtro por tipo), Eventos (por data, com a data no calendário do mundo; abre a ficha do evento) e História (vazia até os Google Docs). Filtro pela busca do mundo (mostra o apelido que casou), botão `+` com o tipo da aba (na aba Eventos, "Novo evento") e lista virtual. As linhas de entidade são arrastáveis (`application/x-wd-entity`) e o mapa aceita o arraste: cria o token ou uma posição no instante ([`docs/06` §6](06-mapa-e-tempo.md#6-drag-and-drop-barra--mapa)).
 - **Linha do tempo** (M3, `wd-timeline-bar`): barra inferior de 88 px, de borda a borda; as barras laterais, as fichas e os avisos terminam acima dela (`--wd-bottom-bar`, `--wd-toast-offset`) e o motor a recebe como margem inferior. Detalhes em [`docs/06` §7](06-mapa-e-tempo.md#7-linha-do-tempo-barra-inferior).
 - **Ficha do evento** (`wd-event-sheet`): mesma página da ficha de entidade (estilos comuns em `entities/sheet.css`); só uma ficha fica aberta por vez. O autosave das duas usa o `Autosaver` (`state/autosave.ts`).
-- **Ficha** (`wd-entity-sheet`): página de pergaminho sobre o Explorar (mínimo 440 px), com retrato, nome, status ("Salvando…", "Salvo") e as abas **Resumo** (subtítulo, tipo, cor do anel, apelidos, etiquetas, "Citada em", lixeira) e **Texto** (editor). Esc fecha e devolve o foco à linha. Relações, Aparições e Documentos chegam com os marcos que os alimentam.
+- **Ficha** (`wd-entity-sheet`): página de pergaminho sobre o Explorar (mínimo 440 px), com retrato, nome, status ("Salvando…", "Salvo") e as abas **Resumo** (subtítulo, tipo, cor do anel, apelidos, etiquetas, **No mapa** — `wd-entity-map-section`, as posições no mapa aberto, M4 —, "Citada em", lixeira) e **Texto** (editor). Esc fecha e devolve o foco à linha. Relações, Aparições e Documentos chegam com os marcos que os alimentam.
 - **Autosave da ficha**: a `EntityStore` aplica a edição na hora e grava 600 ms depois da última mudança, uma gravação por vez por entidade. Conflito recarrega a entidade e avisa; outras falhas guardam a edição e oferecem "Tentar de novo". A lixeira mostra "Desfazer".
 - **Retrato**: o arquivo passa pelas mesmas checagens do mapa, vira um quadrado de até 512 px em WebP (sem EXIF) e vai para a porta `AssetRepository`; o anterior é apagado.
 - **Paleta `Ctrl/Cmd+K`** (também a lupa da barra superior): combobox com Entidades, Eventos, Comandos (criar entidade, enquadrar, Explorar, biblioteca) e Mapas.
@@ -177,7 +178,7 @@ Registrados num `ShortcutService` (`core/shortcuts`) com escopo, desativados qua
 | `T` | Foco na linha do tempo |
 | `←` / `→` | Passo de tempo (`Shift`: passo grande) |
 | `K` | Play/pause |
-| `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z` | Desfazer / refazer |
+| `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z` (ou `Ctrl+Y`) | Desfazer / refazer (edições do mapa) |
 | `Ctrl/Cmd+K` | Busca e paleta de comandos |
 | `Ctrl/Cmd+V` (com imagem) | Importar imagem como mapa |
 | `Enter` / `Esc` (desenhando) | Fechar o polígono do link / cancelar a ferramenta |
