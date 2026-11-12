@@ -91,6 +91,10 @@ export type EngineEvent =
   | { type: 'token:open'; tokenId: Uuid }
   /** Botão direito no token; `anchor` em coordenadas da janela. */
   | { type: 'token:menu'; tokenId: Uuid; anchor: Point }
+  /** Fim do arraste de um losango do rastro. */
+  | { type: 'keyframe:moved'; keyframeId: Uuid; to: Point }
+  /** Clique num losango do rastro. */
+  | { type: 'keyframe:picked'; keyframeId: Uuid; tick: Tick }
   | { type: 'measure'; points: Point[]; distance: number }
   | { type: 'camera'; center: Point; zoom: number }
   /** Duplo clique (ou clique na lupa) numa região de link. */
@@ -163,6 +167,8 @@ export interface MapEngine {
    * token no ponteiro e destaca o token que ela já tem neste mapa. `null` encerra.
    */
   previewDrop(drop: { entityId: Uuid; clientX: number; clientY: number } | null): void;
+  /** Tokens com o rastro de movimento à mostra (selecionados e "Mostrar caminho"). */
+  setTrails(tokenIds: Uuid[]): void;
   /** Posição atual do token no mapa (`null` se oculto ou ausente). */
   tokenPosition(tokenId: Uuid): Point | null;
 

@@ -189,6 +189,9 @@ const ARROW_KEYS_OWNERS =
           [eventWindow]="timeline.eventWindow()"
           [looks]="tokenLooks()"
           [selection]="mapStore.selection()"
+          [trails]="trailTokens()"
+          (keyframeMoved)="tokens.moveKeyframe($event.keyframeId, $event.to)"
+          (keyframePicked)="timeline.seek($event)"
           (tokenMoved)="tokens.move($event.tokenId, $event.to, $event.correctPrevious)"
           (tokenSelected)="mapStore.select($event)"
           (tokenOpen)="openToken($event)"
@@ -666,6 +669,9 @@ export default class WorldShellPage {
   private readonly canvas = viewChild<MapCanvasComponent>('canvas');
   /** Tokens com o caminho (rastro) à mostra pelo menu, além dos selecionados. */
   protected readonly pathTokens = signal<readonly Uuid[]>([]);
+  protected readonly trailTokens = computed(() => [
+    ...new Set([...this.mapStore.selection(), ...this.pathTokens()]),
+  ]);
   private readonly timelineBar = viewChild<TimelineBarComponent>('timelineBar');
   private readonly explorer = viewChild<ExplorerPanelComponent>('explorer');
   private readonly sheet = viewChild<EntitySheetComponent>('sheet');
