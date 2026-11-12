@@ -158,6 +158,26 @@ export const MAP_STRINGS = {
       step: 'Fica parado e salta para a próxima posição.',
       ease: 'Acelera na saída e freia na chegada.',
     },
+    /** Seção "No mapa" da ficha da entidade. */
+    sheet: {
+      title: 'No mapa',
+      noMap: 'Abra um mapa para posicionar a entidade.',
+      absent: (map: string) => `Ainda não está em "${map}".`,
+      present: (map: string, n: number) =>
+        `Em "${map}": ${n === 1 ? '1 posição' : `${n} posições`}.`,
+      positions: 'Posições no tempo',
+      goTo: (date: string) => `Ir para ${date}`,
+      current: 'em vigor',
+      leaves: 'Sai do mapa',
+      movement: (date: string) => `Movimento a partir de ${date}`,
+      remove: (date: string) => `Remover a posição de ${date}`,
+      place: (date: string) => `Marcar posição em ${date}`,
+      show: 'Mostrar no mapa',
+      hide: 'Sair do mapa aqui',
+      removeToken: 'Tirar do mapa',
+      placeHint: (name: string, date: string) =>
+        `Clique no mapa para marcar ${name} em ${date}. Enter marca no centro; Esc cancela.`,
+    },
     removeDialog: {
       title: 'Remover do mapa',
       question: (name: string) => `O que remover de ${name} neste mapa?`,

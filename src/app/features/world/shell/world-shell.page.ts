@@ -278,6 +278,8 @@ const ARROW_KEYS_OWNERS =
         (closed)="closeSheet()"
         (trash)="trashEntity($event)"
         (openEntity)="openEntity($event)"
+        (placeOnMap)="startPlacingEntity($event)"
+        (showOnMap)="showToken($event)"
       />
     }
 
@@ -623,6 +625,8 @@ export default class WorldShellPage {
 
   /** Evento a marcar no mapa com a ferramenta `place`. */
   private readonly placingId = signal<Uuid | null>(null);
+  /** Entidade a marcar no mapa com a ferramenta `place` ("Marcar posição" da ficha). */
+  private readonly placingEntityId = signal<Uuid | null>(null);
   /** Marcador sob o ponteiro (mapa ou trilho), para o popover. */
   private readonly hovered = signal<{ id: Uuid; anchor: Point } | null>(null);
   protected readonly hoveredEvent = computed(() => {
@@ -652,6 +656,13 @@ export default class WorldShellPage {
           ? this.mapText.hints.link
           : `${this.mapText.hints.link} ${this.mapText.hints.linkPoints(points)}`;
       case 'place': {
+        const entity = this.entities.byId().get(this.placingEntityId() ?? '');
+        if (entity) {
+          const date = this.timeline
+            .calendar()
+            .format(this.tokens.keyframeTick(), this.timeline.precision());
+          return this.mapText.tokens.sheet.placeHint(entity.name, date);
+        }
         const event = this.events.byId().get(this.placingId() ?? '');
         return event ? TIME_STRINGS.events.place.hint(event.title) : null;
       }
@@ -1100,12 +1111,34 @@ export default class WorldShellPage {
 
   /** "Marcar no mapa": o próximo clique (ou Enter, no centro) escolhe o ponto. */
   protected startPlacing(id: Uuid): void {
+    this.placingEntityId.set(null);
     this.placingId.set(id);
     this.setTool('place');
     this.canvas()?.focusMap();
   }
 
+  /** "Marcar posição" da ficha: o próximo clique (ou Enter, no centro) grava a posição. */
+  protected startPlacingEntity(id: Uuid): void {
+    this.placingId.set(null);
+    this.placingEntityId.set(id);
+    this.setTool('place');
+    this.canvas()?.focusMap();
+  }
+
+  /** "Mostrar no mapa" da ficha: centraliza e seleciona o token. */
+  protected showToken(tokenId: Uuid): void {
+    this.mapStore.select([tokenId]);
+    this.canvas()?.focusToken(tokenId);
+  }
+
   protected async onPointPicked(point: Point): Promise<void> {
+    const entityId = this.placingEntityId();
+    if (entityId) {
+      this.placingEntityId.set(null);
+      this.setTool('pan');
+      await this.dropEntity(entityId, point);
+      return;
+    }
     const id = this.placingId();
     const event = id ? this.events.byId().get(id) : undefined;
     this.placingId.set(null);
