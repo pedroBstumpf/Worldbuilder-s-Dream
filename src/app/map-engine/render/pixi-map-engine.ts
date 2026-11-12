@@ -17,6 +17,7 @@ import { EventLayer } from '../layers/event-layer';
 import { LinkLayer } from '../layers/link-layer';
 import { loadBitmap } from '../layers/token-faces';
 import { TokenLayer } from '../layers/token-layer';
+import { TrailLayer } from '../layers/trail-layer';
 import {
   EngineEventBus,
   LAYER_IDS,
@@ -69,6 +70,7 @@ export class PixiMapEngine implements MapEngine {
   private readonly layers = new Map<LayerId, Container>();
   private background: Sprite | null = null;
   private tokens: TokenLayer | null = null;
+  private trails: TrailLayer | null = null;
   private eventMarkers: EventLayer | null = null;
   private links: LinkLayer | null = null;
   private overlay: ToolOverlay | null = null;
@@ -148,6 +150,14 @@ export class PixiMapEngine implements MapEngine {
     });
     this.layer('tokens').addChild(this.tokens.container);
     this.layer('labels').addChild(this.tokens.labels);
+    this.trails = new TrailLayer(this.palette, {
+      toWorld: (screen) => this.requireViewport().toWorld(screen.x, screen.y),
+      onMoved: (keyframeId, to) =>
+        this.events.emit({ type: 'keyframe:moved', keyframeId, to: this.clampToMap(to) }),
+      onPicked: (keyframeId, tick) =>
+        this.events.emit({ type: 'keyframe:picked', keyframeId, tick }),
+    });
+    this.layer('routes').addChild(this.trails.container);
     const tokens = this.tokens;
     this.eventMarkers = new EventLayer(this.palette, this.options.reducedMotion, {
       locationOf: (entityId) => tokens.positionOfEntity(entityId),
@@ -187,6 +197,7 @@ export class PixiMapEngine implements MapEngine {
     this.destroyed = true;
     this.events.clear();
     this.tokens?.destroy();
+    this.trails?.destroy();
     this.eventMarkers?.destroy();
     this.links?.destroy();
     this.destroyBackground();
@@ -271,6 +282,7 @@ export class PixiMapEngine implements MapEngine {
     this.links?.setInteractive(!drawing);
     this.eventMarkers?.setInteractive(!drawing);
     this.tokens?.setInteractive(!drawing);
+    this.trails?.setInteractive(!drawing);
     if (this.viewport) {
       this.viewport.cursor = drawing ? 'crosshair' : tool === 'pan' ? 'grab' : 'default';
       // Em Selecionar, o botão esquerdo desenha o retângulo de seleção; o do meio move o mapa.
@@ -307,6 +319,10 @@ export class PixiMapEngine implements MapEngine {
     if (!this.viewport || !this.map) return;
     const at = drop ? this.clampToMap(this.screenToWorld(drop.clientX, drop.clientY)) : null;
     this.tokens?.previewDrop(drop && at ? { entityId: drop.entityId, at } : null);
+  }
+
+  setTrails(tokenIds: Uuid[]): void {
+    this.trails?.setShown(tokenIds);
   }
 
   tokenPosition(tokenId: Uuid): Point | null {
@@ -495,6 +511,7 @@ export class PixiMapEngine implements MapEngine {
     const entityTokens = tokens.filter((token) => token.entityId !== null);
     const eventTokens = tokens.filter((token) => token.eventId !== null);
     this.tokens?.setTokens(entityTokens, keyframes);
+    this.trails?.setTokens(entityTokens, keyframes);
     this.eventMarkers?.setTokens(eventTokens, keyframes);
   }
 
@@ -516,6 +533,7 @@ export class PixiMapEngine implements MapEngine {
   private onZoom(): void {
     const zoom = this.viewport?.scale.x ?? 1;
     this.tokens?.setZoom(zoom);
+    this.trails?.setZoom(zoom);
     this.eventMarkers?.setZoom(zoom);
     this.links?.setZoom(zoom);
     this.overlay?.setZoom(zoom);

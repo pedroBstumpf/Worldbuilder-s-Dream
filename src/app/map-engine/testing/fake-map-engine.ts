@@ -30,6 +30,7 @@ export class FakeMapEngine implements MapEngine {
   readonly hiddenLayers = new Set<LayerId>();
   readonly patches: ScenePatch[] = [];
   drop: { entityId: Uuid; clientX: number; clientY: number } | null = null;
+  trails: Uuid[] = [];
   camera: Camera = { center: { x: 0, y: 0 }, zoom: 1 };
   fits = 0;
   committed = 0;
@@ -82,6 +83,10 @@ export class FakeMapEngine implements MapEngine {
 
   setInsets(insets: ViewportInsets): void {
     this.insets = insets;
+  }
+
+  setTrails(tokenIds: Uuid[]): void {
+    this.trails = tokenIds;
   }
 
   previewDrop(drop: { entityId: Uuid; clientX: number; clientY: number } | null): void {
