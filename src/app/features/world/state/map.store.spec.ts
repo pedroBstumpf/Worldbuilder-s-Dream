@@ -2,7 +2,14 @@ import { TestBed } from '@angular/core/testing';
 import { setUpLocalTestBed } from '@data/local/testing/local-test-bed';
 import { DEFAULT_CALENDAR } from '@domain/calendar/default-calendar';
 import type { WorldMap } from '@domain/models';
-import { EntityRepository, EventRepository, MapRepository, WorldRepository } from '@domain/ports';
+import {
+  AssetRepository,
+  EntityRepository,
+  EventRepository,
+  MapRepository,
+  WorldRepository,
+} from '@domain/ports';
+import type { ProcessedMapImage } from '@engine/import/read-map-image';
 import { HistoryStore } from './history.store';
 import { MapStore } from './map.store';
 
@@ -362,5 +369,86 @@ describe('MapStore (anotações)', () => {
     await expect(store.addAnnotation(pin)).rejects.toThrow('offline');
     expect(store.scene()?.annotations).toEqual([]);
     expect(history.canUndo()).toBe(false);
+  });
+});
+
+describe('MapStore (versões da imagem)', () => {
+  let teardown: () => Promise<void>;
+  let store: InstanceType<typeof MapStore>;
+  let map: WorldMap;
+  const originalUrl = URL.createObjectURL;
+
+  const processed = (): ProcessedMapImage => ({
+    image: new Blob([new Uint8Array([1, 2, 3])], { type: 'image/webp' }),
+    thumbnail: new Blob([new Uint8Array([4])], { type: 'image/webp' }),
+    bitmap: { width: 1000, height: 800, close: () => undefined } as ImageBitmap,
+    width: 1000,
+    height: 800,
+    originalWidth: 1000,
+    originalHeight: 800,
+    reduced: false,
+  });
+
+  beforeEach(async () => {
+    // O jsdom não tem object URLs.
+    URL.createObjectURL = () => `blob:test/${crypto.randomUUID()}`;
+    ({ teardown } = await setUpLocalTestBed([MapStore, HistoryStore]));
+    const world = await TestBed.inject(WorldRepository).create(
+      { id: crypto.randomUUID(), name: 'Eldoria' },
+      DEFAULT_CALENDAR,
+    );
+    map = await TestBed.inject(MapRepository).create({
+      id: crypto.randomUUID(),
+      worldId: world.id,
+      name: 'Continente',
+      width: 1000,
+      height: 800,
+    });
+    store = TestBed.inject(MapStore);
+    await store.load(map, null);
+  });
+
+  afterEach(async () => {
+    URL.createObjectURL = originalUrl;
+    await teardown();
+  });
+
+  it('cria versões em ordem de data, com a URL da imagem', async () => {
+    const late = await store.addImageVersion(processed(), 900);
+    const early = await store.addImageVersion(processed(), 300);
+
+    expect(store.imageVersionInputs()).toEqual([
+      { id: early.id, tickStart: 300, url: expect.stringMatching(/^blob:/) },
+      { id: late.id, tickStart: 900, url: expect.stringMatching(/^blob:/) },
+    ]);
+    const scene = await TestBed.inject(MapRepository).getScene(map.id);
+    expect(scene?.imageVersions.map((v) => v.tickStart)).toEqual([300, 900]);
+  });
+
+  it('não grava duas versões na mesma data e apaga o arquivo enviado', async () => {
+    await store.addImageVersion(processed(), 300);
+    await expect(store.addImageVersion(processed(), 300)).rejects.toMatchObject({
+      code: 'conflict',
+    });
+    expect(store.scene()?.imageVersions).toHaveLength(1);
+  });
+
+  it('muda a data, troca a imagem, remove e restaura', async () => {
+    const version = await store.addImageVersion(processed(), 300);
+    const firstUrl = store.imageVersionInputs()[0]?.url;
+
+    await store.moveImageVersion(version.id, 500);
+    expect(store.imageVersionInputs()[0]?.tickStart).toBe(500);
+
+    await store.replaceImageVersion(version.id, processed());
+    const replaced = store.scene()?.imageVersions[0];
+    expect(replaced?.imageAssetId).not.toBe(version.imageAssetId);
+    expect(store.imageVersionInputs()[0]?.url).not.toBe(firstUrl);
+    expect(await TestBed.inject(AssetRepository).get(version.imageAssetId ?? '')).toBeNull();
+
+    await store.removeImageVersion(version.id);
+    expect(store.imageVersionInputs()).toEqual([]);
+    await store.restoreImageVersion(version.id);
+    expect(store.imageVersionInputs()).toEqual([expect.objectContaining({ tickStart: 500 })]);
   });
 });

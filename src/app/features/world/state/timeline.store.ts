@@ -34,6 +34,8 @@ interface TimelineState {
   readonly loop: boolean;
 }
 
+const ONE_YEAR_PER_SECOND: PlaySpeed = { amount: 1, unit: 'year' };
+
 /** Quadro mais longo considerado no play (aba em segundo plano, depurador…). */
 const MAX_FRAME_MS = 100;
 
@@ -63,9 +65,18 @@ export const TimelineStore = signalStore(
       eventWindow: computed(() => eventWindow(world.calendar(), view(), width())),
     };
   }),
-  withComputed(({ calendar, currentTick, precision }) => ({
+  withComputed(({ calendar, currentTick, precision, isPlaying, speed }) => ({
     /** Data do cursor no calendário do mundo, na precisão do zoom. */
     label: computed(() => calendar().format(currentTick(), precision())),
+    /**
+     * Play acima de 1 ano por segundo: as versões da imagem do mapa trocam sem fade
+     * (docs/06 › Versões da imagem no tempo).
+     */
+    fastPlay: computed(
+      () =>
+        isPlaying() &&
+        ticksPerSecond(calendar(), speed()) > ticksPerSecond(calendar(), ONE_YEAR_PER_SECOND),
+    ),
   })),
   withMethods((store) => {
     let frame = 0;

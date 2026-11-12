@@ -97,6 +97,17 @@ describe('TimelineStore', () => {
     expect(timeline.isPlaying()).toBe(false);
   });
 
+  it('considera rápido só o play acima de 1 ano por segundo', () => {
+    timeline.init(0, null);
+    timeline.setSpeed({ amount: 5, unit: 'year' });
+    expect(timeline.fastPlay()).toBe(false);
+    timeline.play();
+    expect(timeline.fastPlay()).toBe(true);
+    timeline.setSpeed({ amount: 1, unit: 'year' });
+    expect(timeline.fastPlay()).toBe(false);
+    timeline.toggle();
+  });
+
   it('acompanha a mudança da faixa do mundo', async () => {
     timeline.init(YEAR * 90, null);
     await worldStore.updateTime({ timeEnd: YEAR * 50 });
