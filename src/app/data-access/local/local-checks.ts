@@ -7,6 +7,7 @@ import {
   SCALE_UNITS,
   type Entity,
   type MapAnnotation,
+  type MapImageVersion,
   type MapLink,
   type MapToken,
   type TokenKeyframe,
@@ -79,6 +80,10 @@ export function checkMap(map: WorldMap): void {
   if (map.scaleValue !== null && !(map.scaleValue > 0)) fail('a escala deve ser positiva');
   if (map.scaleUnit !== null) checkOneOf(map.scaleUnit, SCALE_UNITS, 'unidade da escala');
   if (map.parentMapId === map.id) fail('um mapa não pode ser filho de si mesmo');
+}
+
+export function checkImageVersion(version: MapImageVersion): void {
+  if (!isTick(version.tickStart)) fail('início da versão deve ser um tick inteiro');
 }
 
 export function checkLink(link: MapLink): void {
