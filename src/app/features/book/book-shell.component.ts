@@ -31,6 +31,7 @@ import { IconButtonComponent } from '@shared/ui/icon-button/icon-button.componen
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { type CoverError, CoverPlaqueComponent } from './cover/cover-plaque.component';
 import { CreateWorldDialogComponent } from './library/create-world-dialog.component';
+import { LibraryActions, type WorldAction } from './library/library-actions';
 import { LibraryContentsComponent } from './library/library-contents.component';
 import { LibraryStore, type WorldDraftInput } from './library/library.store';
 import { WorldFrontispieceComponent } from './library/world-frontispiece.component';
@@ -74,7 +75,7 @@ const SKIP_KEYS = new Set(['Escape', 'Enter']);
     NgTemplateOutlet,
     WorldFrontispieceComponent,
   ],
-  providers: [LibraryStore],
+  providers: [LibraryStore, LibraryActions],
   templateUrl: './book-shell.component.html',
   styleUrl: './book-shell.component.css',
   host: { '(document:keydown)': 'onKeydown($event)' },
@@ -87,6 +88,12 @@ export default class BookShellComponent {
     const world = this.library.selected();
     return world ? (this.library.coverUrls()[world.id] ?? null) : null;
   });
+  /** Quantos mundos há em cada lista do sumário (rótulos das abas). */
+  protected readonly counts = computed(() => ({
+    worlds: this.library.worlds().length,
+    archived: this.library.archived().length,
+    trash: this.library.trash().length,
+  }));
   protected readonly session = inject(SessionStore);
   protected readonly stripIndexes = Array.from({ length: STRIPS }, (_, i) => i);
 
@@ -114,6 +121,7 @@ export default class BookShellComponent {
   private readonly dialogs = inject(DialogService);
   private readonly toasts = inject(ToastService);
   private readonly announcer = inject(LiveAnnouncer);
+  private readonly actions = inject(LibraryActions);
   private animator: BookAnimator | null = null;
   /** Uma ação do próprio livro está em curso: a troca de rota que ela causa não é "externa". */
   private acting = false;
@@ -212,6 +220,16 @@ export default class BookShellComponent {
     } catch {
       this.toasts.show({ message: this.text.createWorld.failed, kind: 'error' });
     }
+  }
+
+  /** Ação do frontispício sobre o mundo escolhido (menu "⋯" ou botões da lixeira). */
+  protected onWorldAction(action: WorldAction): void {
+    const world = this.library.selected();
+    if (world && this.state() === 'open') void this.actions.run(action, world);
+  }
+
+  protected importWorld(): void {
+    if (this.state() === 'open') void this.actions.importWorld();
   }
 
   /** Clique ou toque na cena pula a animação (menos o clique que a iniciou). */

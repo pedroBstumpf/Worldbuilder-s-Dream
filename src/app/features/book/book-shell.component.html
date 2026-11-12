@@ -62,8 +62,11 @@
           [world]="library.selected()"
           [coverUrl]="selectedCover()"
           [status]="library.status()"
+          [view]="library.view()"
           (open)="openWorld($event)"
           (create)="createWorld()"
+          (import)="importWorld()"
+          (action)="onWorldAction($event)"
         />
         <div class="shade shade-from-edge"></div>
       </div>
@@ -97,13 +100,18 @@
       </div>
       <section class="face face-back wd-page left-page" [inert]="state() !== 'open'">
         <wd-library-contents
-          [worlds]="library.worlds()"
+          [worlds]="library.shown()"
           [selectedId]="library.selected()?.id ?? null"
           [status]="library.status()"
           [ownerName]="ownerName()"
+          [view]="library.view()"
+          [blank]="library.blank()"
+          [counts]="counts()"
           (choose)="library.select($event)"
           (create)="createWorld()"
+          (import)="importWorld()"
           (retry)="library.load()"
+          (viewChange)="library.setView($event)"
         />
         <div class="shade shade-to-spine"></div>
       </section>
@@ -123,6 +131,7 @@
           [world]="library.selected()"
           [coverUrl]="selectedCover()"
           [status]="library.status()"
+          [view]="library.view()"
         />
       </div>
       <div class="shade shade-from-edge"></div>

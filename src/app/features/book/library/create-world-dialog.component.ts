@@ -1,4 +1,4 @@
-import { DialogRef } from '@angular/cdk/dialog';
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { Component, inject, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { BOOK_STRINGS } from '@core/strings/book.strings';
@@ -16,13 +16,14 @@ const FIELD =
 
 /**
  * "Criar mundo": nome e descrição. Devolve o rascunho; quem abriu cria o mundo
- * e vira a página até o mapa.
+ * e vira a página até o mapa. Com um mundo em `DIALOG_DATA`, vira "Renomear mundo",
+ * com os campos preenchidos.
  */
 @Component({
   selector: 'wd-create-world-dialog',
   imports: [ButtonComponent, DialogComponent, ReactiveFormsModule],
   template: `
-    <wd-dialog ornate [title]="text.title">
+    <wd-dialog ornate [title]="title">
       <form
         id="wd-create-world"
         class="flex flex-col gap-5"
@@ -65,7 +66,7 @@ const FIELD =
         {{ text.cancel }}
       </button>
       <button wd-button wdDialogAction variant="primary" type="submit" form="wd-create-world">
-        {{ text.create }}
+        {{ submitLabel }}
       </button>
     </wd-dialog>
   `,
@@ -75,10 +76,14 @@ export class CreateWorldDialogComponent {
   protected readonly text = BOOK_STRINGS.createWorld;
   protected readonly fieldClasses = FIELD;
   protected readonly descriptionMax = WORLD_DESCRIPTION_MAX;
+  /** Mundo a renomear; ausente ao criar. */
+  private readonly current = inject<WorldDraftInput | null>(DIALOG_DATA, { optional: true });
+  protected readonly title = this.current ? BOOK_STRINGS.renameWorld.title : this.text.title;
+  protected readonly submitLabel = this.current ? BOOK_STRINGS.renameWorld.save : this.text.create;
 
   protected readonly form = inject(NonNullableFormBuilder).group({
-    name: ['', [Validators.required, Validators.maxLength(WORLD_NAME_MAX)]],
-    description: ['', Validators.maxLength(WORLD_DESCRIPTION_MAX)],
+    name: [this.current?.name ?? '', [Validators.required, Validators.maxLength(WORLD_NAME_MAX)]],
+    description: [this.current?.description ?? '', Validators.maxLength(WORLD_DESCRIPTION_MAX)],
   });
 
   private readonly submitted = signal(false);
