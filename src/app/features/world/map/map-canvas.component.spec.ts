@@ -226,6 +226,13 @@ describe('MapCanvasComponent', () => {
     engine.events.emit({ type: 'token:selected', ids: ['t1', 't2'] });
     engine.events.emit({ type: 'token:open', tokenId: 't1' });
     engine.events.emit({ type: 'token:menu', tokenId: 't1', anchor: { x: 1, y: 2 } });
+    // O menu espera o `contextmenu` nativo (que o CDK fecharia como clique fora).
+    expect(host.menus).toEqual([]);
+    const canvas = fixture.nativeElement.querySelector('[role="application"]') as HTMLElement;
+    const contextMenu = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    canvas.dispatchEvent(contextMenu);
+    expect(contextMenu.defaultPrevented).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve));
     expect(host.moved).toEqual([{ tokenId: 't1', to: { x: 5, y: 6 }, correctPrevious: true }]);
     expect(host.selected).toEqual([['t1', 't2']]);
     expect(host.openedTokens).toEqual(['t1']);

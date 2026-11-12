@@ -39,7 +39,7 @@ import { mapNameFromFile } from '@domain/maps';
 import { eventColor } from '@domain/events';
 import { isTick, type EntityKind, type PolygonVertex, type Uuid } from '@domain/models';
 import { MapImageError, readMapImage, type ProcessedMapImage } from '@engine/import/read-map-image';
-import { isEventActive, suggestSpeed, type PlaySpeed } from '@domain/timeline';
+import { isEventActive, keyframeInEffect, suggestSpeed, type PlaySpeed } from '@domain/timeline';
 import type {
   EventMarkerInput,
   LayerId,
@@ -73,9 +73,13 @@ import { MapImportDirective } from '../import/map-import.directive';
 import { pickImageFile } from '../import/pick-image-file';
 import { MapCanvasComponent, type CameraChange } from '../map/map-canvas.component';
 import { TokenActions } from '../map/token-actions';
+import { TokenMenuComponent } from '../map/token-menu.component';
 import {
   LinkTargetDialogComponent,
+  RemoveTokenDialogComponent,
   RenameMapDialogComponent,
+  type RemoveTokenChoice,
+  type RemoveTokenData,
   ScaleDialogComponent,
   type LinkTargetData,
   type ScaleDialogData,
@@ -141,6 +145,7 @@ const ARROW_KEYS_OWNERS =
     EventPopoverComponent,
     EventSheetComponent,
     ExplorerPanelComponent,
+    TokenMenuComponent,
     IconButtonComponent,
     LeftToolbarComponent,
     MapCanvasComponent,
@@ -187,6 +192,7 @@ const ARROW_KEYS_OWNERS =
           (tokenMoved)="tokens.move($event.tokenId, $event.to, $event.correctPrevious)"
           (tokenSelected)="mapStore.select($event)"
           (tokenOpen)="openToken($event)"
+          (tokenMenu)="tokenMenu.open($event.tokenId, $event.anchor)"
           (entityDropped)="dropEntity($event.entityId, $event.point)"
           (cameraChange)="saveCamera($event)"
           (pointPicked)="onPointPicked($event)"
@@ -288,6 +294,14 @@ const ARROW_KEYS_OWNERS =
         (showOnMap)="showEventOnMap($event)"
       />
     }
+
+    <wd-token-menu
+      #tokenMenu
+      [pathTokens]="pathTokens()"
+      (openSheet)="openEntity($event)"
+      (togglePath)="togglePath($event)"
+      (closed)="onTokenMenuClosed()"
+    />
 
     @if (hoveredEvent(); as hovered) {
       <wd-event-popover
@@ -650,6 +664,8 @@ export default class WorldShellPage {
 
   private readonly title = viewChild.required<ElementRef<HTMLElement>>('title');
   private readonly canvas = viewChild<MapCanvasComponent>('canvas');
+  /** Tokens com o caminho (rastro) à mostra pelo menu, além dos selecionados. */
+  protected readonly pathTokens = signal<readonly Uuid[]>([]);
   private readonly timelineBar = viewChild<TimelineBarComponent>('timelineBar');
   private readonly explorer = viewChild<ExplorerPanelComponent>('explorer');
   private readonly sheet = viewChild<EntitySheetComponent>('sheet');
@@ -1145,6 +1161,45 @@ export default class WorldShellPage {
     if (token) this.mapStore.select([token.id]);
   }
 
+  protected togglePath(tokenId: Uuid): void {
+    const shown = this.pathTokens();
+    this.pathTokens.set(
+      shown.includes(tokenId) ? shown.filter((id) => id !== tokenId) : [...shown, tokenId],
+    );
+  }
+
+  /** O menu devolve o foco ao mapa, a menos que uma ação o tenha levado a outro lugar. */
+  protected onTokenMenuClosed(): void {
+    const active = this.document.activeElement;
+    if (!active || active === this.document.body) this.canvas()?.focusMap();
+  }
+
+  /** Del: remove a posição em vigor ou o token inteiro (com confirmação, docs/06 §3). */
+  protected async removeSelectedTokens(): Promise<void> {
+    const tokens = this.mapStore.selectedTokens().filter((token) => token.entityId !== null);
+    const first = tokens[0];
+    if (!first) return;
+    const tick = this.timeline.currentTick();
+    const current =
+      tokens.length === 1 ? keyframeInEffect(this.mapStore.keyframesOf(first.id), tick) : null;
+    const text = this.mapText.tokens.removeDialog;
+    const ref = this.dialogs.open<RemoveTokenDialogComponent, RemoveTokenData, RemoveTokenChoice>(
+      RemoveTokenDialogComponent,
+      {
+        data: {
+          name: tokens.length === 1 ? this.tokens.tokenName(first.id) : text.several(tokens.length),
+          keyframeDate: current
+            ? this.timeline.calendar().format(current.tick, this.timeline.precision())
+            : null,
+        },
+      },
+    );
+    const choice = await firstValueFrom(ref.closed);
+    if (choice === 'keyframe' && current) await this.tokens.removeKeyframe(current.id);
+    if (choice === 'token') for (const token of tokens) await this.tokens.remove(token.id);
+    this.canvas()?.focusMap();
+  }
+
   /** Duplo clique no token: abre a ficha da entidade. */
   protected openToken(tokenId: Uuid): void {
     const token = this.mapStore.scene()?.tokens.find((t) => t.id === tokenId);
@@ -1448,6 +1503,12 @@ export default class WorldShellPage {
         down: () => this.canvas()?.commitTool(),
       },
       { key: 'k', mod: true, inFields: true, down: () => void this.openPalette() },
+      {
+        key: 'delete',
+        when: (event) =>
+          hasMap() && this.mapStore.selection().length > 0 && notOnControl(event) && !drawing(),
+        down: () => void this.removeSelectedTokens(),
+      },
       { key: 'z', mod: true, shift: false, when: hasMap, down: () => void this.undo() },
       { key: 'z', mod: true, shift: true, when: hasMap, down: () => void this.redo() },
       { key: 'y', mod: true, when: hasMap, down: () => void this.redo() },
