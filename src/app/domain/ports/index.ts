@@ -7,3 +7,4 @@ export * from './map.repository';
 export * from './mention.repository';
 export * from './profile.repository';
 export * from './world.repository';
+export * from './world-transfer.repository';

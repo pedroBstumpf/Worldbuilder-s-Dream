@@ -30,6 +30,13 @@ export abstract class WorldRepository {
   abstract update(id: Uuid, patch: WorldPatch, expectedVersion: number): Promise<World>;
   abstract moveToTrash(id: Uuid, expectedVersion: number): Promise<void>;
   abstract restore(id: Uuid): Promise<World>;
+  /** Mundos do usuário que estão na lixeira, o último a entrar primeiro. */
+  abstract listTrash(): Promise<World[]>;
+  /**
+   * Exclui para sempre um mundo da lixeira e tudo o que há nele (RPC `empty_trash`).
+   * Mundo fora da lixeira: `AppError('not_found')`.
+   */
+  abstract deleteForever(id: Uuid): Promise<void>;
 
   abstract getCalendar(worldId: Uuid): Promise<WorldCalendar>;
   abstract saveCalendar(worldId: Uuid, definition: CalendarDefinition): Promise<WorldCalendar>;

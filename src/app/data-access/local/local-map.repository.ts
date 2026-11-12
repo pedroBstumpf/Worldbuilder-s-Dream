@@ -33,12 +33,8 @@ import {
 } from './local-checks';
 import { LocalDatabase } from './local-database';
 import { definedOnly, inTransaction, requireUserId, timestamp } from './local-transaction';
+import { keyframesOf } from './local-world-rows';
 import { isLive, TrashableTable } from './trashable-table';
-
-/** Todos os keyframes de um token no índice `[tokenId, tick]`, já em ordem de tick. */
-function keyframesOf(tokenId: Uuid): IDBKeyRange {
-  return IDBKeyRange.bound([tokenId, -Infinity], [tokenId, Infinity]);
-}
 
 type MapContentStore = 'mapTokens' | 'tokenKeyframes' | 'mapAnnotations' | 'mapLinks';
 

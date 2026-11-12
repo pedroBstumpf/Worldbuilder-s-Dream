@@ -9,6 +9,7 @@ import {
   MentionRepository,
   ProfileRepository,
   WorldRepository,
+  WorldTransferRepository,
 } from '@domain/ports';
 import { FakeAuthService } from './local/fake-auth.service';
 import { LocalWorldRepository } from './local/local-world.repository';
@@ -33,6 +34,7 @@ describe('provideDataAccess', () => {
       MentionRepository,
       AssetRepository,
       ProfileRepository,
+      WorldTransferRepository,
     ]) {
       expect(TestBed.inject<object>(port)).toBeInstanceOf(port);
     }
