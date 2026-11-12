@@ -27,6 +27,7 @@ import {
   type MentionCandidate,
 } from './editor/rich-text-editor.component';
 import { EntityAvatarComponent } from './entity-avatar.component';
+import { EntityMapSectionComponent } from './entity-map-section.component';
 import { LabelInputComponent } from './label-input.component';
 import { readPortrait } from './read-portrait';
 
@@ -42,6 +43,7 @@ const PREFIX = 'wd-sheet';
 @Component({
   selector: 'wd-entity-sheet',
   imports: [
+    EntityMapSectionComponent,
     EntityAvatarComponent,
     IconButtonComponent,
     IconComponent,
@@ -212,6 +214,13 @@ const PREFIX = 'wd-sheet';
                 </button>
               }
 
+              <wd-entity-map-section
+                [entityId]="entity.id"
+                [prefix]="prefix"
+                (place)="placeOnMap.emit($event)"
+                (show)="showOnMap.emit($event)"
+              />
+
               <section class="field" [attr.aria-labelledby]="prefix + '-cited'">
                 <h3 class="field-label" [id]="prefix + '-cited'">{{ text.citedIn }}</h3>
                 @if (citations.value(); as list) {
@@ -339,6 +348,10 @@ export class EntitySheetComponent {
   readonly closed = output();
   readonly trash = output<Uuid>();
   readonly openEntity = output<Uuid>();
+  /** "Marcar posição" no mapa aberto (o id é da entidade). */
+  readonly placeOnMap = output<Uuid>();
+  /** "Mostrar no mapa" (o id é do token). */
+  readonly showOnMap = output<Uuid>();
 
   protected readonly store = inject(EntityStore);
   private readonly toasts = inject(ToastService);
