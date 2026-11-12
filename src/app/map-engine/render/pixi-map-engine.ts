@@ -1,4 +1,12 @@
 import { pointInPolygon, type Point } from '@domain/geometry';
+import {
+  DEFAULT_BRUSH,
+  DEFAULT_REGION_OPACITY,
+  PIN_ICONS,
+  polylineLength,
+  simplifyStroke,
+  type BrushStyle,
+} from '@domain/maps';
 import type { MapToken, Tick, TokenKeyframe, Uuid, WorldMap } from '@domain/models';
 import type { MapScene } from '@domain/ports';
 import { Viewport } from 'pixi-viewport';
@@ -13,12 +21,14 @@ import {
   type FederatedPointerEvent,
   type PointData,
 } from 'pixi.js';
+import { AnnotationLayer } from '../layers/annotation-layer';
 import { EventLayer } from '../layers/event-layer';
 import { LinkLayer } from '../layers/link-layer';
 import { loadBitmap } from '../layers/token-faces';
 import { TokenLayer } from '../layers/token-layer';
 import { TrailLayer } from '../layers/trail-layer';
 import {
+  DRAWING_TOOLS,
   EngineEventBus,
   LAYER_IDS,
   type Camera,
@@ -54,6 +64,10 @@ interface ClickedEvent {
 const CAMERA_ANIMATION_MS = 200;
 /** Raio, em px de tela, para fechar o polígono clicando no primeiro vértice. */
 const CLOSE_POLYGON_SLOP = 10;
+/** Raio da borracha, em px de tela. */
+const ERASER_RADIUS = 10;
+/** Distância mínima entre dois pontos guardados do pincel, em px de tela. */
+const BRUSH_SAMPLE = 1.5;
 const NO_INSETS: ViewportInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 
 /**
@@ -74,6 +88,7 @@ export class PixiMapEngine implements MapEngine {
   private eventMarkers: EventLayer | null = null;
   private links: LinkLayer | null = null;
   private overlay: ToolOverlay | null = null;
+  private annotations: AnnotationLayer | null = null;
 
   private map: WorldMap | null = null;
   private scene: MapScene | null = null;
@@ -86,6 +101,14 @@ export class PixiMapEngine implements MapEngine {
   private readonly clicks = new ClickTracker();
   private readonly calibration = new CalibrationDraft();
   private readonly polygon = new PolygonDraft();
+  private readonly region = new PolygonDraft();
+  /** Pontos da régua em curso. */
+  private ruler: Point[] = [];
+  /** Traço do pincel em curso (do `pointerdown` ao `pointerup`). */
+  private stroke: Point[] | null = null;
+  /** Último ponto da borracha durante a passada. */
+  private eraser: Point | null = null;
+  private drawStyle: BrushStyle = DEFAULT_BRUSH;
   private destroyed = false;
 
   constructor(private readonly options: MapEngineOptions) {}
@@ -174,8 +197,25 @@ export class PixiMapEngine implements MapEngine {
     );
     this.layer('regions').addChild(this.links.regions);
     this.layer('labels').addChild(this.links.lenses);
+    this.annotations = new AnnotationLayer(this.palette, {
+      toWorld: (screen) => this.requireViewport().toWorld(screen.x, screen.y),
+      onPicked: (id, screen) =>
+        this.events.emit({ type: 'annotation:picked', id, anchor: this.toClient(screen) }),
+      onMoved: (id, shape) =>
+        this.events.emit({
+          type: 'annotation:changed',
+          id,
+          shape:
+            shape.kind === 'pin' || shape.kind === 'label'
+              ? { ...shape, at: this.clampToMap(shape.at) }
+              : shape,
+        }),
+    });
+    // Regiões e traços abaixo dos links; pinos, rótulos e medições abaixo das lupas.
+    this.layer('regions').addChildAt(this.annotations.shapes, 0);
+    this.layer('labels').addChildAt(this.annotations.marks, 0);
     this.overlay = new ToolOverlay(this.palette);
-    this.layer('overlay').addChild(this.overlay.graphics);
+    this.layer('overlay').addChild(this.overlay.view);
 
     viewport.on('moved', () => this.keepMapInView());
     viewport.on('zoomed', () => this.onZoom());
@@ -200,6 +240,7 @@ export class PixiMapEngine implements MapEngine {
     this.trails?.destroy();
     this.eventMarkers?.destroy();
     this.links?.destroy();
+    this.annotations?.destroy();
     this.destroyBackground();
     // O viewport sai antes da aplicação: destruída primeiro, ela leva o ticker junto e o
     // viewport quebra ao tentar se desligar dele.
@@ -217,9 +258,7 @@ export class PixiMapEngine implements MapEngine {
     const viewport = this.requireViewport();
     this.scene = scene;
     this.map = scene.map;
-    this.polygon.clear();
-    this.calibration.clear();
-    this.overlay?.clear();
+    this.clearDrafts();
 
     const bitmap = typeof image === 'string' ? await loadBitmap(image) : image;
     if (this.destroyed || this.scene !== scene) {
@@ -240,6 +279,7 @@ export class PixiMapEngine implements MapEngine {
     }
     viewport.resize(viewport.screenWidth, viewport.screenHeight, scene.map.width, scene.map.height);
     this.links?.setLinks(scene.links);
+    this.annotations?.setAnnotations(scene.annotations);
     this.setTokens(scene.tokens, scene.keyframes);
     this.updateZoomLimits();
     this.fitToMap(false);
@@ -265,12 +305,17 @@ export class PixiMapEngine implements MapEngine {
         this.scene = { ...this.scene, tokens: patch.tokens, keyframes: patch.keyframes };
         this.setTokens(patch.tokens, patch.keyframes);
         break;
+      case 'annotations':
+        this.scene = { ...this.scene, annotations: patch.annotations };
+        this.annotations?.setAnnotations(patch.annotations);
+        break;
     }
   }
 
   setTime(tick: Tick): void {
     this.tick = tick;
     this.tokens?.setTime(tick);
+    this.annotations?.setTime(tick);
     // Depois dos tokens: o marcador pode estar no token do local.
     this.eventMarkers?.setTime(tick);
   }
@@ -278,36 +323,58 @@ export class PixiMapEngine implements MapEngine {
   setTool(tool: ToolId): void {
     if (tool !== this.tool) this.cancelTool();
     this.tool = tool;
-    const drawing = tool === 'calibrate' || tool === 'link' || tool === 'place';
+    const drawing = DRAWING_TOOLS.includes(tool);
     this.links?.setInteractive(!drawing);
+    this.annotations?.setInteractive(!drawing);
     this.eventMarkers?.setInteractive(!drawing);
     this.tokens?.setInteractive(!drawing);
     this.trails?.setInteractive(!drawing);
     if (this.viewport) {
       this.viewport.cursor = drawing ? 'crosshair' : tool === 'pan' ? 'grab' : 'default';
-      // Em Selecionar, o botão esquerdo desenha o retângulo de seleção; o do meio move o mapa.
-      const buttons = tool === 'select' ? 'middle' : 'left-middle';
+      // Em Selecionar, o botão esquerdo desenha o retângulo de seleção; no pincel e na
+      // borracha, desenha e apaga. O do meio continua movendo o mapa.
+      const leftDraws = tool === 'select' || tool === 'brush' || tool === 'eraser';
+      const buttons = leftDraws ? 'middle' : 'left-middle';
       this.viewport.drag({ mouseButtons: buttons, wheel: false });
     }
   }
 
   commitTool(): void {
-    if (this.tool === 'place') {
-      // Teclado: Enter marca no centro da área visível.
-      this.events.emit({ type: 'point:picked', point: this.clampToMap(this.camera.center) });
-      return;
+    // Teclado: Enter marca no centro da área visível.
+    const center = this.clampToMap(this.camera.center);
+    switch (this.tool) {
+      case 'place':
+        this.events.emit({ type: 'point:picked', point: center });
+        break;
+      case 'pin':
+      case 'label':
+        this.createMark(center);
+        break;
+      case 'link':
+        this.closePolygon();
+        break;
+      case 'region':
+        this.closeRegion();
+        break;
     }
-    if (this.tool !== 'link') return;
-    this.closePolygon();
   }
 
   cancelTool(): void {
-    this.marquee = null;
-    this.calibration.clear();
-    this.polygon.clear();
-    this.overlay?.clear();
-    this.clicks.reset();
+    this.annotations?.restoreErased();
+    this.clearDrafts();
     this.emitProgress();
+  }
+
+  setDrawStyle(style: BrushStyle): void {
+    this.drawStyle = style;
+  }
+
+  setActiveAnnotation(id: Uuid | null): void {
+    this.annotations?.setActive(id);
+  }
+
+  setDistanceFormat(format: ((pixels: number) => string) | null): void {
+    this.annotations?.setFormat(format);
   }
 
   setSelection(ids: Uuid[]): void {
@@ -429,6 +496,44 @@ export class PixiMapEngine implements MapEngine {
       this.emitProgress();
       return;
     }
+    if (this.tool === 'region') {
+      const tolerance = CLOSE_POLYGON_SLOP / this.camera.zoom;
+      if (isDouble || this.region.isNearStart(world, tolerance)) {
+        this.closeRegion();
+        return;
+      }
+      this.region.add(this.clampToMap(world));
+      this.overlay?.show(this.region.vertices, true, this.drawStyle.color);
+      this.emitProgress();
+      return;
+    }
+    if (this.tool === 'pin' || this.tool === 'label') {
+      this.createMark(this.clampToMap(world));
+      return;
+    }
+    if (this.tool === 'measure') {
+      this.ruler.push(this.clampToMap(world));
+      this.overlay?.showRuler(this.ruler);
+      this.emitProgress();
+      this.events.emit({
+        type: 'measure',
+        points: [...this.ruler],
+        distance: polylineLength(this.ruler),
+      });
+      return;
+    }
+    if (this.tool === 'brush' || this.tool === 'eraser') return;
+    if (this.tool === 'select' && !isDouble) {
+      const id = this.annotations?.shapeAt(world);
+      if (id) {
+        this.events.emit({
+          type: 'annotation:picked',
+          id,
+          anchor: this.toClient({ x: event.screen.x, y: event.screen.y }),
+        });
+        return;
+      }
+    }
     if (isDouble) {
       const link = this.scene?.links.find((l) => pointInPolygon(world, l.polygon));
       if (link)
@@ -455,12 +560,34 @@ export class PixiMapEngine implements MapEngine {
 
   /** Selecionar: o botão esquerdo no fundo começa o retângulo de seleção. */
   private onPointerDown(event: FederatedPointerEvent): void {
-    if (this.tool !== 'select' || event.button !== 0) return;
+    if (event.button !== 0) return;
     const p = this.requireViewport().toWorld(event.global.x, event.global.y);
-    this.marquee = { start: { x: p.x, y: p.y }, additive: event.shiftKey };
+    const world = { x: p.x, y: p.y };
+    if (this.tool === 'brush') {
+      this.stroke = [this.clampToMap(world)];
+      this.overlay?.showStroke(this.stroke, this.drawStyle);
+      return;
+    }
+    if (this.tool === 'eraser') {
+      this.eraser = world;
+      this.annotations?.eraseAlong(world, world, ERASER_RADIUS / this.camera.zoom);
+      return;
+    }
+    if (this.tool !== 'select') return;
+    this.marquee = { start: world, additive: event.shiftKey };
   }
 
   private onPointerUp(event: FederatedPointerEvent): void {
+    if (this.stroke) {
+      this.finishStroke();
+      return;
+    }
+    if (this.eraser) {
+      this.eraser = null;
+      const ids = this.annotations?.takeErased() ?? [];
+      if (ids.length > 0) this.events.emit({ type: 'annotation:erased', ids });
+      return;
+    }
     const marquee = this.marquee;
     if (!marquee) return;
     this.marquee = null;
@@ -474,6 +601,22 @@ export class PixiMapEngine implements MapEngine {
   }
 
   private onPointerMove(event: FederatedPointerEvent): void {
+    if (this.tool === 'brush' && this.stroke) {
+      const p = this.requireViewport().toWorld(event.global.x, event.global.y);
+      this.stroke.push(this.clampToMap({ x: p.x, y: p.y }));
+      this.overlay?.showStroke(this.stroke, this.drawStyle);
+      return;
+    }
+    if (this.tool === 'eraser') {
+      const p = this.requireViewport().toWorld(event.global.x, event.global.y);
+      const world = { x: p.x, y: p.y };
+      this.overlay?.showEraser(world, ERASER_RADIUS);
+      if (this.eraser) {
+        this.annotations?.eraseAlong(this.eraser, world, ERASER_RADIUS / this.camera.zoom);
+        this.eraser = world;
+      }
+      return;
+    }
     if (this.marquee) {
       const p = this.requireViewport().toWorld(event.global.x, event.global.y);
       const a = this.marquee.start;
@@ -481,11 +624,72 @@ export class PixiMapEngine implements MapEngine {
       this.overlay?.show(corners, true);
       return;
     }
-    if (this.tool !== 'link' && this.tool !== 'calibrate') return;
+    const drafts: Partial<Record<ToolId, readonly Point[]>> = {
+      link: this.polygon.vertices,
+      region: this.region.vertices,
+      calibrate: this.calibration.vertices,
+      measure: this.ruler,
+    };
+    const drafting = drafts[this.tool];
+    if (!drafting) return;
     const p = this.requireViewport().toWorld(event.global.x, event.global.y);
-    const drafting = this.tool === 'link' ? this.polygon : this.calibration;
-    const done = this.tool === 'calibrate' && this.calibration.vertices.length === 2;
-    this.overlay?.setHover(drafting.vertices.length > 0 && !done ? { x: p.x, y: p.y } : null);
+    const done = this.tool === 'calibrate' && drafting.length === 2;
+    this.overlay?.setHover(drafting.length > 0 && !done ? { x: p.x, y: p.y } : null);
+  }
+
+  /** Pino ou rótulo no ponto, com a cor escolhida. */
+  private createMark(at: Point): void {
+    const color = this.drawStyle.color;
+    this.events.emit({
+      type: 'annotation:created',
+      draft:
+        this.tool === 'pin'
+          ? { kind: 'pin', at, color, icon: PIN_ICONS[0] }
+          : { kind: 'label', at, color, size: 'md' },
+    });
+  }
+
+  /** Fim do traço: a espessura escolhida (px de tela) vira px do mapa no zoom atual. */
+  private finishStroke(): void {
+    const zoom = this.camera.zoom;
+    const points = simplifyStroke(this.stroke ?? [], BRUSH_SAMPLE / zoom);
+    this.stroke = null;
+    this.overlay?.clear();
+    if (points.length === 0) return;
+    const { color, width, opacity, dashed } = this.drawStyle;
+    this.events.emit({
+      type: 'annotation:created',
+      draft: { kind: 'stroke', points, color, width: width / zoom, opacity, dashed },
+    });
+  }
+
+  private closeRegion(): void {
+    const polygon = this.region.close();
+    this.overlay?.clear();
+    this.clicks.reset();
+    this.emitProgress();
+    if (!polygon) return;
+    this.events.emit({
+      type: 'annotation:created',
+      draft: {
+        kind: 'region',
+        polygon,
+        color: this.drawStyle.color,
+        opacity: DEFAULT_REGION_OPACITY,
+      },
+    });
+  }
+
+  private clearDrafts(): void {
+    this.marquee = null;
+    this.calibration.clear();
+    this.polygon.clear();
+    this.region.clear();
+    this.ruler = [];
+    this.stroke = null;
+    this.eraser = null;
+    this.overlay?.clear();
+    this.clicks.reset();
   }
 
   private closePolygon(): void {
@@ -497,12 +701,13 @@ export class PixiMapEngine implements MapEngine {
   }
 
   private emitProgress(): void {
-    const points =
-      this.tool === 'link'
-        ? this.polygon.vertices.length
-        : this.tool === 'calibrate'
-          ? this.calibration.vertices.length
-          : 0;
+    const counts: Partial<Record<ToolId, number>> = {
+      link: this.polygon.vertices.length,
+      region: this.region.vertices.length,
+      calibrate: this.calibration.vertices.length,
+      measure: this.ruler.length,
+    };
+    const points = counts[this.tool] ?? 0;
     this.events.emit({ type: 'tool:progress', tool: this.tool, points });
   }
 
@@ -536,6 +741,7 @@ export class PixiMapEngine implements MapEngine {
     this.trails?.setZoom(zoom);
     this.eventMarkers?.setZoom(zoom);
     this.links?.setZoom(zoom);
+    this.annotations?.setZoom(zoom);
     this.overlay?.setZoom(zoom);
     this.keepMapInView();
   }
