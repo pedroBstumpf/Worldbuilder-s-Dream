@@ -16,13 +16,11 @@ import {
   Container,
   CullerPlugin,
   extensions,
-  ImageSource,
-  Sprite,
-  Texture,
   type FederatedPointerEvent,
   type PointData,
 } from 'pixi.js';
 import { AnnotationLayer } from '../layers/annotation-layer';
+import { BackgroundLayer } from '../layers/background-layer';
 import { EventLayer } from '../layers/event-layer';
 import { LinkLayer } from '../layers/link-layer';
 import { loadBitmap } from '../layers/token-faces';
@@ -33,6 +31,7 @@ import {
   EngineEventBus,
   LAYER_IDS,
   type Camera,
+  type ImageVersionInput,
   type LayerId,
   type MapEngine,
   type MapEngineOptions,
@@ -83,7 +82,11 @@ export class PixiMapEngine implements MapEngine {
   private host: HTMLElement | null = null;
   private palette: EnginePalette | null = null;
   private readonly layers = new Map<LayerId, Container>();
-  private background: Sprite | null = null;
+  private background: BackgroundLayer | null = null;
+  /** Último patch de versões da imagem; vale quando a cena for do mesmo mapa. */
+  private imageVersions: { mapId: Uuid; versions: ImageVersionInput[] } | null = null;
+  /** Entre o início de `loadScene` e a imagem inicial decodificada. */
+  private loadingScene = false;
   private tokens: TokenLayer | null = null;
   private trails: TrailLayer | null = null;
   private eventMarkers: EventLayer | null = null;
@@ -193,6 +196,9 @@ export class PixiMapEngine implements MapEngine {
     });
     this.layer('tokens').addChild(this.eventMarkers.container);
     app.ticker.add((ticker) => this.eventMarkers?.animate(ticker.deltaMS));
+    this.background = new BackgroundLayer(this.options.reducedMotion);
+    this.layer('background').addChild(this.background.container);
+    app.ticker.add((ticker) => this.background?.animate(ticker.deltaMS));
     this.links = new LinkLayer(this.palette, (link) =>
       this.events.emit({ type: 'link:open', linkId: link.id, targetMapId: link.targetMapId }),
     );
@@ -242,7 +248,8 @@ export class PixiMapEngine implements MapEngine {
     this.eventMarkers?.destroy();
     this.links?.destroy();
     this.annotations?.destroy();
-    this.destroyBackground();
+    this.background?.destroy();
+    this.background = null;
     // O viewport sai antes da aplicação: destruída primeiro, ela leva o ticker junto e o
     // viewport quebra ao tentar se desligar dele.
     if (this.viewport) {
@@ -261,23 +268,24 @@ export class PixiMapEngine implements MapEngine {
     this.map = scene.map;
     this.clearDrafts();
 
-    const bitmap = typeof image === 'string' ? await loadBitmap(image) : image;
+    this.loadingScene = true;
+    let bitmap: ImageBitmap | null;
+    try {
+      bitmap = typeof image === 'string' ? await loadBitmap(image) : image;
+    } finally {
+      if (this.scene === scene) this.loadingScene = false;
+    }
     if (this.destroyed || this.scene !== scene) {
       bitmap?.close();
       return;
     }
-    this.destroyBackground();
-    if (bitmap) {
-      const source = new ImageSource({
-        resource: bitmap,
-        autoGenerateMipmaps: true,
-        scaleMode: 'linear',
-      });
-      this.background = new Sprite({ texture: new Texture({ source }), label: 'map-image' });
-      // Reduzida (ou trocada) desde o registro: estica para as dimensões do mapa.
-      this.background.setSize(scene.map.width, scene.map.height);
-      this.layer('background').addChild(this.background);
+    // Reduzida (ou trocada) desde o registro: a imagem é esticada para as dimensões do mapa.
+    const size = { width: scene.map.width, height: scene.map.height };
+    this.background?.setBase(bitmap, typeof image === 'string' ? image : null, size);
+    if (this.imageVersions?.mapId === scene.map.id) {
+      this.background?.setVersions(this.imageVersions.versions, true);
     }
+    this.background?.setTime(this.tick, true);
     viewport.resize(viewport.screenWidth, viewport.screenHeight, scene.map.width, scene.map.height);
     this.links?.setLinks(scene.links);
     this.annotations?.setAnnotations(scene.annotations);
@@ -294,6 +302,14 @@ export class PixiMapEngine implements MapEngine {
     }
     if (patch.type === 'looks') {
       this.tokens?.setLooks(patch.looks);
+      return;
+    }
+    if (patch.type === 'imageVersions') {
+      this.imageVersions = { mapId: patch.mapId, versions: patch.versions };
+      // Durante o carregamento da cena, `loadScene` aplica as versões no fim.
+      if (this.map?.id === patch.mapId && this.background && !this.loadingScene) {
+        this.background.setVersions(patch.versions, false);
+      }
       return;
     }
     if (!this.scene) return;
@@ -313,8 +329,9 @@ export class PixiMapEngine implements MapEngine {
     }
   }
 
-  setTime(tick: Tick): void {
+  setTime(tick: Tick, instant = false): void {
     this.tick = tick;
+    if (!this.loadingScene) this.background?.setTime(tick, instant);
     this.tokens?.setTime(tick);
     this.annotations?.setTime(tick);
     // Depois dos tokens: o marcador pode estar no token do local.
@@ -793,14 +810,5 @@ export class PixiMapEngine implements MapEngine {
   private requireViewport(): Viewport {
     if (!this.viewport) throw new Error('MapEngine.mount() ainda não terminou');
     return this.viewport;
-  }
-
-  private destroyBackground(): void {
-    if (!this.background) return;
-    const source = this.background.texture.source;
-    const resource: unknown = source.resource;
-    this.background.destroy({ texture: true, textureSource: true });
-    if (resource instanceof ImageBitmap) resource.close();
-    this.background = null;
   }
 }

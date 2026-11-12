@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import type { WorldMap } from '@domain/models';
 import type { MapScene } from '@domain/ports';
 import type { Point } from '@domain/geometry';
-import type { EventMarkerInput, LayerId, ToolId } from '@engine/map-engine';
+import type { EventMarkerInput, ImageVersionInput, LayerId, ToolId } from '@engine/map-engine';
 import { fakeMapEngineFactory } from '@engine/testing/fake-map-engine';
 import { MapCanvasComponent, type CameraChange } from './map-canvas.component';
 import { ENTITY_DRAG_TYPE, EntityDrag } from './entity-drag';
@@ -42,6 +42,8 @@ function scene(links: MapScene['links'] = []): MapScene {
       [savedCamera]="saved"
       [mapNames]="{ m2: 'Porto' }"
       [time]="time()"
+      [instantTime]="instant()"
+      [imageVersions]="versions()"
       [events]="events()"
       [eventWindow]="0"
       (cameraChange)="cameras.push($event)"
@@ -71,6 +73,8 @@ class HostComponent {
   readonly cameras: CameraChange[] = [];
   readonly opened: string[] = [];
   readonly time = signal(0);
+  readonly instant = signal(false);
+  readonly versions = signal<ImageVersionInput[]>([]);
   readonly events = signal<EventMarkerInput[]>([]);
   readonly picked: Point[] = [];
   readonly openedEvents: string[] = [];
@@ -177,6 +181,20 @@ describe('MapCanvasComponent', () => {
     await fixture.whenStable();
     expect(engine.tick).toBe(150);
     expect(engine.patches.at(-1)).toEqual({ type: 'events', events: [battle], window: 0 });
+  });
+
+  it('sends the image versions of the scene map and asks for instant swaps', async () => {
+    const { engine, fixture, host } = await setUp();
+    const versions = [{ id: 'v1', tickStart: 50, url: 'blob:v1' }];
+    host.versions.set(versions);
+    await fixture.whenStable();
+    expect(engine.patches).toContainEqual({ type: 'imageVersions', mapId: 'm1', versions });
+
+    host.instant.set(true);
+    host.time.set(90);
+    await fixture.whenStable();
+    expect(engine.tick).toBe(90);
+    expect(engine.instantTime).toBe(true);
   });
 
   it('turns picked points and marker clicks into outputs', async () => {
