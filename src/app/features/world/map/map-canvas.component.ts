@@ -189,6 +189,8 @@ export class MapCanvasComponent {
   /** Aparência dos tokens (nome, tipo, cor, retrato) por entidade. */
   readonly looks = input<readonly TokenLook[]>([]);
   readonly selection = input<readonly Uuid[]>([]);
+  /** Tokens com o rastro de movimento à mostra. */
+  readonly trails = input<readonly Uuid[]>([]);
 
   readonly cameraChange = output<CameraChange>();
   readonly measure = output<{ points: Point[]; distance: number }>();
@@ -205,6 +207,10 @@ export class MapCanvasComponent {
   readonly tokenSelected = output<Uuid[]>();
   readonly tokenOpen = output<Uuid>();
   readonly tokenMenu = output<{ tokenId: Uuid; anchor: Point }>();
+  /** Losango do rastro arrastado: nova posição do keyframe. */
+  readonly keyframeMoved = output<{ keyframeId: Uuid; to: Point }>();
+  /** Clique num losango do rastro: o instante do keyframe. */
+  readonly keyframePicked = output<Tick>();
   /** Entidade do Explorar solta no mapa, no ponto do mapa sob o ponteiro. */
   readonly entityDropped = output<{ entityId: Uuid; point: Point }>();
 
@@ -339,6 +345,12 @@ export class MapCanvasComponent {
           case 'token:open':
             this.tokenOpen.emit(event.tokenId);
             break;
+          case 'keyframe:moved':
+            this.keyframeMoved.emit({ keyframeId: event.keyframeId, to: event.to });
+            break;
+          case 'keyframe:picked':
+            this.keyframePicked.emit(event.tick);
+            break;
           case 'token:menu':
             this.deferMenu({ tokenId: event.tokenId, anchor: event.anchor });
             break;
@@ -367,6 +379,7 @@ export class MapCanvasComponent {
     effect(() => this.engine()?.setTime(this.time()));
     effect(() => this.engine()?.applyPatch({ type: 'looks', looks: [...this.looks()] }));
     effect(() => this.engine()?.setSelection([...this.selection()]));
+    effect(() => this.engine()?.setTrails([...this.trails()]));
     effect(() => {
       const engine = this.engine();
       const events = [...this.events()];
