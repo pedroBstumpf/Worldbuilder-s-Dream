@@ -35,18 +35,26 @@ import { MAP_STRINGS } from '@core/strings/map.strings';
 import { TIME_STRINGS } from '@core/strings/time.strings';
 import { WORLD_STRINGS } from '@core/strings/world.strings';
 import type { Point } from '@domain/geometry';
-import { mapNameFromFile } from '@domain/maps';
+import {
+  DEFAULT_BRUSH,
+  mapNameFromFile,
+  toMapUnits,
+  type AnnotationShape,
+  type BrushStyle,
+} from '@domain/maps';
 import { eventColor } from '@domain/events';
 import { isTick, type EntityKind, type PolygonVertex, type Uuid } from '@domain/models';
 import { MapImageError, readMapImage, type ProcessedMapImage } from '@engine/import/read-map-image';
 import { isEventActive, keyframeInEffect, suggestSpeed, type PlaySpeed } from '@domain/timeline';
-import type {
-  EventMarkerInput,
-  LayerId,
-  TokenLook,
-  ToolId,
-  ViewportInsets,
+import {
+  DRAWING_TOOLS,
+  type EventMarkerInput,
+  type LayerId,
+  type TokenLook,
+  type ToolId,
+  type ViewportInsets,
 } from '@engine/map-engine';
+import { ButtonComponent } from '@shared/ui/button/button.component';
 import { DemoBadgeComponent } from '@shared/ui/demo-badge/demo-badge.component';
 import { DialogService } from '@shared/ui/dialog/dialog.service';
 import { IconButtonComponent } from '@shared/ui/icon-button/icon-button.component';
@@ -71,6 +79,7 @@ import {
 import { MapImportAreaComponent } from '../import/map-import-area.component';
 import { MapImportDirective } from '../import/map-import.directive';
 import { pickImageFile } from '../import/pick-image-file';
+import { AnnotationEditorComponent, type AnnotationLink } from '../map/annotation-editor.component';
 import { MapCanvasComponent, type CameraChange } from '../map/map-canvas.component';
 import { TokenActions } from '../map/token-actions';
 import { TokenMenuComponent } from '../map/token-menu.component';
@@ -95,7 +104,7 @@ import {
 import { EntityStore } from '../state/entity.store';
 import { EventStore } from '../state/event.store';
 import { HistoryStore } from '../state/history.store';
-import { MapStore } from '../state/map.store';
+import { MapStore, type AnnotationEdit } from '../state/map.store';
 import { TimelineStore } from '../state/timeline.store';
 import { WorldStore } from '../state/world.store';
 import type {
@@ -107,6 +116,7 @@ import { SpeedDialogComponent, type SpeedDialogData } from '../timeline/speed-di
 import { TimelineBarComponent, type TimelineEventMark } from '../timeline/timeline-bar.component';
 import { ExplorerPanelComponent } from './explorer-panel.component';
 import { LeftToolbarComponent, type ToggleableLayer } from './left-toolbar.component';
+import { ToolOptionsComponent } from './tool-options.component';
 
 /** Como a tela chegou: zoom vindo do livro, fade (movimento reduzido) ou direto. */
 type Entrance = 'zoom' | 'fade' | 'none';
@@ -140,6 +150,8 @@ const ARROW_KEYS_OWNERS =
 @Component({
   selector: 'wd-world-shell-page',
   imports: [
+    AnnotationEditorComponent,
+    ButtonComponent,
     DemoBadgeComponent,
     EntitySheetComponent,
     EventPopoverComponent,
@@ -153,6 +165,7 @@ const ARROW_KEYS_OWNERS =
     MapImportDirective,
     MapTitleComponent,
     TimelineBarComponent,
+    ToolOptionsComponent,
   ],
   providers: [
     WorldStore,
@@ -190,6 +203,13 @@ const ARROW_KEYS_OWNERS =
           [looks]="tokenLooks()"
           [selection]="mapStore.selection()"
           [trails]="trailTokens()"
+          [drawStyle]="drawStyle()"
+          [activeAnnotation]="editing()?.id ?? null"
+          [distanceFormat]="distanceFormat()"
+          (annotationCreated)="onAnnotationCreated($event)"
+          (annotationChanged)="editAnnotation($event.id, { shape: $event.shape }, 'moveAnnotation')"
+          (annotationErased)="eraseAnnotations($event)"
+          (annotationPicked)="openAnnotation($event.id, $event.anchor, !$event.fromList)"
           (keyframeMoved)="tokens.moveKeyframe($event.keyframeId, $event.to)"
           (keyframePicked)="timeline.seek($event)"
           (tokenMoved)="tokens.move($event.tokenId, $event.to, $event.correctPrevious)"
@@ -241,6 +261,13 @@ const ARROW_KEYS_OWNERS =
         (toggleLayer)="toggleLayer($event)"
         (collapsedChange)="setBars({ leftCollapsed: $event })"
       />
+      @if (!bars().leftCollapsed) {
+        <wd-tool-options
+          [tool]="tool()"
+          [style]="drawStyle()"
+          (styleChange)="drawStyle.set($event)"
+        />
+      }
       <wd-explorer-panel
         #explorer
         [attr.data-entrance]="entrance"
@@ -255,7 +282,19 @@ const ARROW_KEYS_OWNERS =
         (retry)="entities.load(worldId())"
       />
       @if (hint(); as text) {
-        <p class="hint wd-panel" aria-live="polite">{{ text }}</p>
+        <div class="hint wd-panel">
+          <p aria-live="polite">{{ text }}</p>
+          @if (tool() === 'measure' && ruler(); as r) {
+            <p class="ruler">
+              <span aria-live="polite">{{
+                mapText.hints.measureTotal(formatDistance(r.distance))
+              }}</span>
+              <button wd-button type="button" size="sm" (click)="fixMeasure()">
+                {{ mapText.hints.fixMeasure }}
+              </button>
+            </p>
+          }
+        </div>
       }
       <wd-timeline-bar
         #timelineBar
@@ -298,6 +337,18 @@ const ARROW_KEYS_OWNERS =
         (place)="startPlacing($event)"
         (unplace)="unplaceEvent($event)"
         (showOnMap)="showEventOnMap($event)"
+      />
+    }
+
+    @if (editingAnnotation(); as e) {
+      <wd-annotation-editor
+        [annotation]="e.annotation"
+        [anchor]="e.anchor"
+        [autofocus]="e.autofocus"
+        (edit)="editAnnotation(e.annotation.id, $event)"
+        (remove)="removeAnnotation(e.annotation.id)"
+        (closed)="closeAnnotation()"
+        (openLink)="openAnnotationLink($event)"
       />
     }
 
@@ -439,6 +490,18 @@ const ARROW_KEYS_OWNERS =
       font-size: 0.875rem;
       text-align: center;
       transform: translateX(-50%);
+    }
+
+    .ruler {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
+      padding-block-start: 6px;
+      margin-block-start: 6px;
+      font-family: var(--font-mono);
+      color: var(--wd-accent);
+      border-block-start: 1px solid var(--wd-divider);
     }
 
     /* Barra superior: 48 px, couro 95%, filete dourado inferior (docs/05). */
@@ -585,6 +648,29 @@ export default class WorldShellPage {
   protected readonly effectiveTool = computed(() => (this.spaceHeld() ? 'pan' : this.tool()));
   protected readonly hiddenLayers = signal<readonly LayerId[]>([]);
   protected readonly toolPoints = signal(0);
+  /** Cor, espessura, opacidade e linha das próximas anotações (faixa de opções). */
+  protected readonly drawStyle = signal<BrushStyle>(DEFAULT_BRUSH);
+  /** Anotação aberta no editor e onde ele abre. */
+  protected readonly editing = signal<{ id: Uuid; anchor: Point; autofocus: boolean } | null>(null);
+  protected readonly editingAnnotation = computed(() => {
+    const editing = this.editing();
+    const annotation = this.mapStore.scene()?.annotations.find((a) => a.id === editing?.id);
+    return editing && annotation ? { ...editing, annotation } : null;
+  });
+  /** Régua em curso: pontos e total em px do mapa. */
+  protected readonly ruler = signal<{ points: Point[]; distance: number } | null>(null);
+  /** Distâncias na unidade da escala do mapa (ou em px, sem escala). */
+  protected readonly distanceFormat = computed(() => {
+    const map = this.store.activeMap();
+    const units = this.mapText.scale.units;
+    return (pixels: number) => {
+      const value = map ? toMapUnits(pixels, map) : null;
+      if (value === null || !map?.scaleUnit)
+        return `${Math.round(pixels).toLocaleString('pt-BR')} px`;
+      const number = value.toLocaleString('pt-BR', { maximumFractionDigits: value < 10 ? 2 : 1 });
+      return `${number} ${units[map.scaleUnit]}`;
+    };
+  });
   protected readonly busy = signal(false);
 
   private readonly prefs = inject(UiPrefsStore);
@@ -652,6 +738,13 @@ export default class WorldShellPage {
     switch (this.tool()) {
       case 'calibrate':
         return this.mapText.hints.calibrate[Math.min(points, 1)];
+      case 'pin':
+      case 'label':
+      case 'brush':
+      case 'eraser':
+      case 'region':
+      case 'measure':
+        return this.mapText.hints[this.tool() as 'pin'];
       case 'link':
         return points === 0
           ? this.mapText.hints.link
@@ -846,7 +939,100 @@ export default class WorldShellPage {
 
   protected setTool(tool: ToolId): void {
     this.toolPoints.set(0);
+    this.ruler.set(null);
+    if (tool !== this.tool()) this.editing.set(null);
     this.tool.set(tool);
+  }
+
+  protected formatDistance(pixels: number): string {
+    return this.distanceFormat()(pixels);
+  }
+
+  /** Anotação desenhada: grava e, se tiver o que preencher, abre o editor junto dela. */
+  protected async onAnnotationCreated(shape: AnnotationShape): Promise<void> {
+    const text = this.mapText.annotations;
+    try {
+      const annotation = await this.mapStore.addAnnotation(shape);
+      void this.announcer.announce(text.created[shape.kind]);
+      if (shape.kind === 'stroke') return;
+      afterNextRender(
+        () => {
+          const anchor = this.canvas()?.annotationAnchor(annotation.id);
+          if (anchor) this.openAnnotation(annotation.id, anchor, true);
+        },
+        { injector: this.injector },
+      );
+    } catch {
+      this.toasts.show({ message: text.editor.failed, kind: 'error' });
+    }
+  }
+
+  protected openAnnotation(id: Uuid, anchor: Point, autofocus = true): void {
+    this.editing.set({ id, anchor, autofocus });
+  }
+
+  protected closeAnnotation(): void {
+    this.editing.set(null);
+    this.canvas()?.focusMap();
+  }
+
+  protected async editAnnotation(
+    id: Uuid,
+    changes: AnnotationEdit,
+    label: 'editAnnotation' | 'moveAnnotation' = 'editAnnotation',
+  ): Promise<void> {
+    try {
+      await this.mapStore.updateAnnotation(id, changes, label);
+    } catch {
+      this.toasts.show({ message: this.mapText.annotations.editor.failed, kind: 'error' });
+    }
+  }
+
+  protected async removeAnnotation(id: Uuid): Promise<void> {
+    const text = this.mapText.annotations.editor;
+    const kind = this.mapStore.scene()?.annotations.find((a) => a.id === id)?.kind;
+    this.closeAnnotation();
+    try {
+      await this.mapStore.removeAnnotations([id]);
+      if (!kind) return;
+      this.toasts.show({
+        message: text.removed[kind],
+        kind: 'success',
+        action: { label: text.undo, run: () => void this.undo() },
+      });
+    } catch {
+      this.toasts.show({ message: text.failed, kind: 'error' });
+    }
+  }
+
+  /** Passada da borracha: apaga os traços tocados numa edição só (um Ctrl+Z traz todos). */
+  protected async eraseAnnotations(ids: Uuid[]): Promise<void> {
+    try {
+      await this.mapStore.removeAnnotations(ids, 'erase');
+      void this.announcer.announce(this.mapText.annotations.erased(ids.length));
+    } catch {
+      this.toasts.show({ message: this.mapText.annotations.editor.failed, kind: 'error' });
+    }
+  }
+
+  /** "Fixar medição": a régua em curso vira uma anotação; a próxima começa do zero. */
+  protected async fixMeasure(): Promise<void> {
+    const ruler = this.ruler();
+    if (!ruler || ruler.points.length < 2) return;
+    this.ruler.set(null);
+    this.toolPoints.set(0);
+    this.canvas()?.cancelTool();
+    try {
+      await this.mapStore.addAnnotation({ kind: 'measure', points: ruler.points });
+      void this.announcer.announce(this.mapText.annotations.created.measure);
+    } catch {
+      this.toasts.show({ message: this.mapText.annotations.editor.failed, kind: 'error' });
+    }
+  }
+
+  protected openAnnotationLink(link: AnnotationLink): void {
+    if ('entityId' in link) this.openEntity(link.entityId);
+    else this.openEvent(link.eventId);
   }
 
   protected fitMap(): void {
@@ -947,7 +1133,11 @@ export default class WorldShellPage {
   }
 
   /** Linha desenhada sobre a escala gráfica: pergunta o comprimento real. */
-  protected async onMeasure({ distance }: { points: Point[]; distance: number }): Promise<void> {
+  protected async onMeasure({ points, distance }: { points: Point[]; distance: number }) {
+    if (this.tool() === 'measure') {
+      this.ruler.set({ points, distance });
+      return;
+    }
     const map = this.store.activeMap();
     if (!map || this.tool() !== 'calibrate') return;
     const ref = this.dialogs.open<ScaleDialogComponent, ScaleDialogData, ScaleDialogResult>(
@@ -1512,8 +1702,7 @@ export default class WorldShellPage {
   }
 
   private registerShortcuts(): void {
-    const drawing = () =>
-      this.tool() === 'calibrate' || this.tool() === 'link' || this.tool() === 'place';
+    const drawing = () => DRAWING_TOOLS.includes(this.tool());
     const notOnControl = (event: KeyboardEvent) =>
       !(event.target instanceof Element && event.target.closest(INTERACTIVE));
     const hasMap = () => this.store.activeMap() !== null;
@@ -1523,6 +1712,25 @@ export default class WorldShellPage {
     const remove = inject(ShortcutService).register([
       { key: 'v', when: hasMap, down: () => this.setTool('select') },
       { key: 'h', when: hasMap, down: () => this.setTool('pan') },
+      { key: 'p', when: hasMap, down: () => this.setTool('pin') },
+      { key: 'b', when: hasMap, down: () => this.setTool('brush') },
+      { key: 'e', when: hasMap, down: () => this.setTool('eraser') },
+      { key: 'r', when: hasMap, down: () => this.setTool('measure') },
+      { key: 'g', when: hasMap, down: () => this.setTool('region') },
+      { key: 'x', when: hasMap, down: () => this.setTool('label') },
+      {
+        key: 'escape',
+        when: () => this.editing() !== null,
+        down: () => this.closeAnnotation(),
+      },
+      {
+        key: 'escape',
+        when: () => this.tool() === 'measure' && this.ruler() !== null,
+        down: () => {
+          this.canvas()?.cancelTool();
+          this.ruler.set(null);
+        },
+      },
       {
         key: 'space',
         when: (event) => hasMap() && notOnControl(event),
@@ -1549,10 +1757,19 @@ export default class WorldShellPage {
       },
       {
         key: 'enter',
-        when: (event) => (this.tool() === 'link' || this.tool() === 'place') && notOnControl(event),
+        when: (event) =>
+          ['link', 'place', 'pin', 'label', 'region'].includes(this.tool()) && notOnControl(event),
         down: () => this.canvas()?.commitTool(this.effectiveTool()),
       },
       { key: 'k', mod: true, inFields: true, down: () => void this.openPalette() },
+      {
+        key: 'delete',
+        when: (event) => hasMap() && this.editing() !== null && notOnControl(event) && !drawing(),
+        down: () => {
+          const id = this.editing()?.id;
+          if (id) void this.removeAnnotation(id);
+        },
+      },
       {
         key: 'delete',
         when: (event) =>

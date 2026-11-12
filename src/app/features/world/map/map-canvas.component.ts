@@ -16,6 +16,14 @@ import type { SavedCamera } from '@core/prefs/ui-prefs';
 import { MAP_STRINGS } from '@core/strings/map.strings';
 import { TIME_STRINGS } from '@core/strings/time.strings';
 import type { Point } from '@domain/geometry';
+import {
+  annotationAnchor,
+  DEFAULT_BRUSH,
+  isAnnotationVisible,
+  readAnnotation,
+  type AnnotationShape,
+  type BrushStyle,
+} from '@domain/maps';
 import type { PolygonVertex, Tick, Uuid } from '@domain/models';
 import type { MapScene } from '@domain/ports';
 import { evaluateKeyframes, isEventActive, sortKeyframes } from '@domain/timeline';
@@ -67,6 +75,7 @@ export interface EventHover {
       aria-roledescription="mapa"
       [attr.aria-label]="text.label(mapName())"
       aria-describedby="wd-map-instructions"
+      [attr.aria-busy]="ready() ? null : 'true'"
       (keydown)="onKey($event)"
       (dragover)="onDragOver($event)"
       (dragleave)="onDragLeave($event)"
@@ -86,6 +95,24 @@ export interface EventHover {
                 (click)="openTokenMenu(token.id)"
               >
                 {{ tokenText.listItem(token.name) }}
+              </button>
+            </li>
+          }
+        </ul>
+      </nav>
+    }
+    @if (visibleAnnotations().length > 0) {
+      <nav class="links" [attr.aria-label]="annotationText.list">
+        <ul>
+          @for (item of visibleAnnotations(); track item.id) {
+            <li>
+              <button
+                type="button"
+                class="link wd-focus"
+                [attr.data-annotation]="item.id"
+                (click)="pickAnnotation(item.id)"
+              >
+                {{ item.name }}
               </button>
             </li>
           }
@@ -191,6 +218,12 @@ export class MapCanvasComponent {
   readonly selection = input<readonly Uuid[]>([]);
   /** Tokens com o rastro de movimento à mostra. */
   readonly trails = input<readonly Uuid[]>([]);
+  /** Cor, espessura, opacidade e linha das próximas anotações. */
+  readonly drawStyle = input<BrushStyle>(DEFAULT_BRUSH);
+  /** Anotação aberta no editor (destacada no mapa). */
+  readonly activeAnnotation = input<Uuid | null>(null);
+  /** Texto das medições fixadas, na unidade do mapa. */
+  readonly distanceFormat = input<((pixels: number) => string) | null>(null);
 
   readonly cameraChange = output<CameraChange>();
   readonly measure = output<{ points: Point[]; distance: number }>();
@@ -213,10 +246,38 @@ export class MapCanvasComponent {
   readonly keyframePicked = output<Tick>();
   /** Entidade do Explorar solta no mapa, no ponto do mapa sob o ponteiro. */
   readonly entityDropped = output<{ entityId: Uuid; point: Point }>();
+  /** Pino, rótulo, traço ou região desenhados. */
+  readonly annotationCreated = output<AnnotationShape>();
+  /** Pino ou rótulo arrastado. */
+  readonly annotationChanged = output<{ id: Uuid; shape: AnnotationShape }>();
+  /** Traços tocados por uma passada da borracha. */
+  readonly annotationErased = output<Uuid[]>();
+  /** Clique numa anotação (ou botão da lista): abre o editor junto dela. */
+  readonly annotationPicked = output<{ id: Uuid; anchor: Point; fromList: boolean }>();
 
   protected readonly text = MAP_STRINGS.canvas;
   protected readonly eventText = TIME_STRINGS.events.map;
   protected readonly tokenText = MAP_STRINGS.tokens;
+  protected readonly annotationText = MAP_STRINGS.annotations;
+
+  /** Anotações visíveis no instante, para teclado e leitor de tela (mesma ideia dos tokens). */
+  protected readonly visibleAnnotations = computed(
+    () => {
+      const tick = this.time();
+      const text = this.annotationText;
+      return (this.scene()?.annotations ?? [])
+        .filter((annotation) => isAnnotationVisible(annotation, tick))
+        .map((annotation) => ({
+          id: annotation.id,
+          name: text.listItem(text.kinds[annotation.kind], annotation.title ?? ''),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    },
+    {
+      equal: (a, b) =>
+        a.length === b.length && a.every((t, i) => t.id === b[i]?.id && t.name === b[i]?.name),
+    },
+  );
 
   /** Keyframes de cada token de entidade, ordenados (só muda com a cena). */
   private readonly entityTokens = computed(() => {
@@ -270,6 +331,8 @@ export class MapCanvasComponent {
   private readonly factory = inject(MAP_ENGINE_FACTORY);
   private readonly drag = inject(EntityDrag);
   private readonly engine = signal<MapEngine | null>(null);
+  /** O motor já desenhou a cena atual (até lá, cliques e teclas não chegam ao mapa). */
+  protected readonly ready = signal(false);
   private loaded: { mapId: Uuid; image: MapImageSource | null } | null = null;
   /** Menu pedido pelo botão direito, à espera do `contextmenu` nativo. */
   private pendingMenu: {
@@ -354,6 +417,18 @@ export class MapCanvasComponent {
           case 'token:menu':
             this.deferMenu({ tokenId: event.tokenId, anchor: event.anchor });
             break;
+          case 'annotation:created':
+            this.annotationCreated.emit(event.draft);
+            break;
+          case 'annotation:changed':
+            this.annotationChanged.emit({ id: event.id, shape: event.shape });
+            break;
+          case 'annotation:erased':
+            this.annotationErased.emit(event.ids);
+            break;
+          case 'annotation:picked':
+            this.annotationPicked.emit({ id: event.id, anchor: event.anchor, fromList: false });
+            break;
         }
       });
       // Margens e ferramenta antes da primeira cena: o enquadramento inicial já as considera.
@@ -380,6 +455,9 @@ export class MapCanvasComponent {
     effect(() => this.engine()?.applyPatch({ type: 'looks', looks: [...this.looks()] }));
     effect(() => this.engine()?.setSelection([...this.selection()]));
     effect(() => this.engine()?.setTrails([...this.trails()]));
+    effect(() => this.engine()?.setDrawStyle(this.drawStyle()));
+    effect(() => this.engine()?.setActiveAnnotation(this.activeAnnotation()));
+    effect(() => this.engine()?.setDistanceFormat(this.distanceFormat()));
     effect(() => {
       const engine = this.engine();
       const events = [...this.events()];
@@ -423,6 +501,24 @@ export class MapCanvasComponent {
   /** Centraliza o mapa num token (ex.: "Mostrar no mapa" da ficha). */
   focusToken(tokenId: Uuid): void {
     this.engine()?.focus({ tokenId }, true);
+  }
+
+  /** Ponto da anotação na tela, em coordenadas da janela (âncora do editor). */
+  annotationAnchor(id: Uuid): Point | null {
+    const engine = this.engine();
+    const annotation = this.scene()?.annotations.find((a) => a.id === id);
+    const shape = annotation ? readAnnotation(annotation) : null;
+    return engine && shape ? engine.worldToScreen(annotationAnchor(shape)) : null;
+  }
+
+  /** Botão da lista acessível: abre o editor junto da anotação. */
+  protected pickAnnotation(id: Uuid): void {
+    const host = this.host().nativeElement.getBoundingClientRect();
+    const anchor = this.annotationAnchor(id) ?? {
+      x: host.left + host.width / 2,
+      y: host.top + host.height / 2,
+    };
+    this.annotationPicked.emit({ id, anchor, fromList: true });
   }
 
   /** Posição atual do token na tela, em coordenadas da janela (âncora do menu). */
@@ -531,15 +627,18 @@ export class MapCanvasComponent {
     if (same) {
       engine.applyPatch({ type: 'links', links: scene.links });
       engine.applyPatch({ type: 'tokens', tokens: scene.tokens, keyframes: scene.keyframes });
+      engine.applyPatch({ type: 'annotations', annotations: scene.annotations });
       return;
     }
     this.loaded = { mapId: scene.map.id, image };
+    this.ready.set(false);
     try {
       await engine.loadScene(scene, image);
     } catch {
       this.loadFailed.emit();
       return;
     }
+    this.ready.set(true);
     const saved = this.savedCamera()(scene.map.id);
     if (saved) engine.focus({ point: { x: saved.x, y: saved.y }, zoom: saved.zoom }, false);
   }
