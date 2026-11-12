@@ -14,6 +14,7 @@ import {
 import { checkWorld } from './local-checks';
 import { LocalDatabase } from './local-database';
 import { inTransaction, requireUserId, timestamp } from './local-transaction';
+import { collectWorldRows, deleteWorldRows, WORLD_STORES } from './local-world-rows';
 import { isLive, TrashableTable } from './trashable-table';
 
 /** Padrão de `worlds.time_end` no docs/07: 100 anos em minutos. */
@@ -27,6 +28,28 @@ export class LocalWorldRepository extends WorldRepository {
 
   /** Mundos de que o usuário é membro, do mais antigo ao mais novo. */
   override async list(): Promise<World[]> {
+    const worlds = await this.memberWorlds();
+    return worlds.filter(isLive).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  override async listTrash(): Promise<World[]> {
+    const worlds = await this.memberWorlds();
+    return worlds
+      .filter((world) => world.deletedAt !== null)
+      .sort((a, b) => (b.deletedAt ?? '').localeCompare(a.deletedAt ?? ''));
+  }
+
+  /** Como o `delete` em `worlds`: o `on delete cascade` leva tudo o que é do mundo. */
+  override async deleteForever(id: Uuid): Promise<void> {
+    const db = await this.database.ready();
+    await inTransaction(db, WORLD_STORES, async (tx) => {
+      const rows = await collectWorldRows(tx, id);
+      if (!rows || rows.world.deletedAt === null) throw new AppError('not_found');
+      await deleteWorldRows(tx, rows);
+    });
+  }
+
+  private async memberWorlds(): Promise<World[]> {
     const userId = await requireUserId(this.auth);
     const db = await this.database.ready();
     const tx = db.transaction(['worldMembers', 'worlds']);
@@ -34,7 +57,7 @@ export class LocalWorldRepository extends WorldRepository {
     const worlds = await Promise.all(
       memberships.map((member) => tx.objectStore('worlds').get(member.worldId)),
     );
-    return worlds.filter(isLive).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return worlds.filter((world) => world !== undefined);
   }
 
   override get(id: Uuid): Promise<World | null> {
@@ -119,7 +142,7 @@ export class LocalWorldRepository extends WorldRepository {
 }
 
 /** O banco só confere as chaves mínimas; o cliente valida o calendário inteiro (docs/07). */
-function validCalendar(definition: CalendarDefinition): CalendarDefinition {
+export function validCalendar(definition: CalendarDefinition): CalendarDefinition {
   try {
     return parseCalendarDefinition(definition);
   } catch (cause) {

@@ -9,6 +9,7 @@ import {
   MentionRepository,
   ProfileRepository,
   WorldRepository,
+  WorldTransferRepository,
 } from '@domain/ports';
 import { FakeAuthService } from './fake-auth.service';
 import {
@@ -24,6 +25,7 @@ import { LocalMapRepository } from './local-map.repository';
 import { LocalMentionRepository } from './local-mention.repository';
 import { LocalProfileRepository } from './local-profile.repository';
 import { LocalWorldRepository } from './local-world.repository';
+import { LocalWorldTransferRepository } from './local-world-transfer.repository';
 
 /**
  * Modo local (docs/10): liga as portas de `domain/ports` aos adaptadores IndexedDB e ao
@@ -44,5 +46,6 @@ export function provideLocalDataAccess(
     { provide: MentionRepository, useClass: LocalMentionRepository },
     { provide: AssetRepository, useClass: LocalAssetRepository },
     { provide: ProfileRepository, useClass: LocalProfileRepository },
+    { provide: WorldTransferRepository, useClass: LocalWorldTransferRepository },
   ]);
 }
