@@ -18,6 +18,7 @@ import {
   withMethods,
   withState,
 } from '@ngrx/signals';
+import { Autosaver } from './autosave';
 
 /** Espera depois da última edição antes de gravar (docs/04 › Autosave, 400–800 ms). */
 export const ENTITY_SAVE_DELAY_MS = 600;
@@ -55,12 +56,6 @@ interface EntityState {
 
 const byName = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
 
-/** Edição ainda não gravada de uma entidade. */
-interface Pending {
-  patch: EntityPatch;
-  timer: ReturnType<typeof setTimeout> | null;
-}
-
 /**
  * Entidades e eventos do mundo aberto (docs/04 › Estado), com a ficha aberta, os
  * retratos e o índice de busca. Edições são otimistas: o estado muda na hora e a
@@ -92,8 +87,6 @@ export const EntityStore = signalStore(
       mentions = inject(MentionRepository),
       assets = inject(AssetRepository),
     ) => {
-      const pending = new Map<Uuid, Pending>();
-      const inflight = new Map<Uuid, Promise<void>>();
       const portraitRequests = new Set<Uuid>();
 
       const find = (id: Uuid): Entity | undefined => store.byId().get(id);
@@ -106,22 +99,6 @@ export const EntityStore = signalStore(
       const setStatus = (id: Uuid, status: SaveStatus) =>
         patchState(store, { saveStatus: { ...store.saveStatus(), [id]: status } });
 
-      const save = async (id: Uuid): Promise<void> => {
-        const waiting = inflight.get(id);
-        if (waiting) await waiting;
-        const entry = pending.get(id);
-        if (!entry) return;
-        if (entry.timer) clearTimeout(entry.timer);
-        pending.delete(id);
-        const run = write(id, entry.patch);
-        inflight.set(id, run);
-        try {
-          await run;
-        } finally {
-          if (inflight.get(id) === run) inflight.delete(id);
-        }
-      };
-
       const write = async (id: Uuid, patch: EntityPatch): Promise<void> => {
         const before = find(id);
         if (!before) return;
@@ -129,51 +106,41 @@ export const EntityStore = signalStore(
         try {
           const saved = await repo.update(id, patch, before.version);
           // Edições feitas durante a gravação continuam valendo na tela.
-          const newer = pending.get(id)?.patch ?? {};
-          replace({ ...saved, ...newer });
+          replace({ ...saved, ...autosave.pendingPatch(id) });
           if ('content' in patch) {
             await mentions.replace(
               { worldId: saved.worldId, kind: 'entity', id },
               mentionedEntityIds(saved.content),
             );
           }
-          setStatus(id, pending.has(id) ? 'saving' : 'saved');
+          setStatus(id, autosave.has(id) ? 'saving' : 'saved');
         } catch (error) {
           const conflict = isAppError(error, 'conflict') || isAppError(error, 'not_found');
           if (conflict) {
             // Outra pessoa mudou o item: recarrega e descarta a edição local.
-            pending.delete(id);
+            autosave.discard(id);
             const fresh = await repo.get(id).catch(() => null);
             if (fresh) replace(fresh);
             else patchState(store, { entities: store.entities().filter((e) => e.id !== id) });
           } else {
             // Guarda a edição para tentar de novo, sob as que chegaram depois.
-            const newer = pending.get(id);
-            pending.set(id, { patch: { ...patch, ...newer?.patch }, timer: newer?.timer ?? null });
+            autosave.requeue(id, patch);
           }
           setStatus(id, 'failed');
           patchState(store, { saveFailure: { entityId: id, conflict, at: Date.now() } });
         }
       };
 
-      const schedule = (id: Uuid, patch: EntityPatch) => {
-        const entry = pending.get(id) ?? { patch: {}, timer: null };
-        entry.patch = { ...entry.patch, ...patch };
-        if (entry.timer) clearTimeout(entry.timer);
-        entry.timer = setTimeout(() => {
-          entry.timer = null;
-          void save(id);
-        }, ENTITY_SAVE_DELAY_MS);
-        pending.set(id, entry);
-        setStatus(id, 'saving');
-      };
+      const autosave = new Autosaver<EntityPatch>(ENTITY_SAVE_DELAY_MS, write);
+      const save = (id: Uuid) => autosave.save(id);
 
       /** Edição otimista; grava depois de uma pausa. */
       const edit = (id: Uuid, patch: EntityPatch): void => {
         const entity = find(id);
         if (!entity) return;
         replace({ ...entity, ...patch });
-        schedule(id, patch);
+        autosave.schedule(id, patch);
+        setStatus(id, 'saving');
       };
 
       return {
@@ -207,9 +174,8 @@ export const EntityStore = signalStore(
         },
 
         /** Grava agora o que estiver pendente (ao fechar a ficha, sair ou tentar de novo). */
-        async flush(id?: Uuid): Promise<void> {
-          const ids = id ? [id] : [...pending.keys()];
-          await Promise.all(ids.map((each) => save(each)));
+        flush(id?: Uuid): Promise<void> {
+          return autosave.flush(id);
         },
 
         /** Move para a lixeira e devolve a entidade, para o "Desfazer". */
