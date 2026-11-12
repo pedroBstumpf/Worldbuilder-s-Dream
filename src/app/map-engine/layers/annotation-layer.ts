@@ -349,7 +349,7 @@ export class AnnotationLayer {
         fontFamily: this.palette.fontBook,
         fontSize: LABEL_FONT_SIZES[shape.size],
         fill: shape.color,
-        stroke: { color: this.palette.backdrop, width: 4, join: 'round' },
+        stroke: { color: this.palette.backdrop, width: 3, join: 'round' },
         letterSpacing: 0.5,
       },
       resolution: 2,
