@@ -3,6 +3,7 @@ import { setUpLocalTestBed } from '@data/local/testing/local-test-bed';
 import { DEFAULT_CALENDAR } from '@domain/calendar/default-calendar';
 import type { WorldMap } from '@domain/models';
 import { EventRepository, MapRepository, WorldRepository } from '@domain/ports';
+import { HistoryStore } from './history.store';
 import { MapStore } from './map.store';
 
 describe('MapStore (eventos no mapa)', () => {
@@ -12,7 +13,7 @@ describe('MapStore (eventos no mapa)', () => {
   let eventId: string;
 
   beforeEach(async () => {
-    ({ teardown } = await setUpLocalTestBed([MapStore]));
+    ({ teardown } = await setUpLocalTestBed([MapStore, HistoryStore]));
     const world = await TestBed.inject(WorldRepository).create(
       { id: crypto.randomUUID(), name: 'Eldoria' },
       DEFAULT_CALENDAR,
@@ -69,5 +70,54 @@ describe('MapStore (eventos no mapa)', () => {
     expect(store.eventPoint(eventId)).toBeNull();
     expect(store.scene()?.tokens).toEqual([]);
     expect((await repo.getScene(map.id))?.tokens).toEqual([]);
+  });
+
+  it('desfaz e refaz a marcação, também no repositório', async () => {
+    const history = TestBed.inject(HistoryStore);
+    const repo = TestBed.inject(MapRepository);
+    await store.placeEvent(eventId, { x: 1, y: 2 }, 500);
+    await store.placeEvent(eventId, { x: 9, y: 8 }, 500);
+
+    expect(await history.undo()).toBe('placeEvent');
+    expect(store.eventPoint(eventId)).toEqual({ x: 1, y: 2 });
+    await history.undo();
+    expect(store.eventPoint(eventId)).toBeNull();
+    expect((await repo.getScene(map.id))?.tokens).toEqual([]);
+
+    await history.redo();
+    expect(store.eventPoint(eventId)).toEqual({ x: 1, y: 2 });
+    expect((await repo.getScene(map.id))?.keyframes).toEqual([
+      expect.objectContaining({ x: 1, y: 2 }),
+    ]);
+  });
+
+  it('desfaz a remoção de um link', async () => {
+    const history = TestBed.inject(HistoryStore);
+    const target = await TestBed.inject(MapRepository).create({
+      id: crypto.randomUUID(),
+      worldId: map.worldId,
+      name: 'Cidade',
+      width: 10,
+      height: 10,
+    });
+    const link = await store.addLink(
+      [
+        [0, 0],
+        [10, 0],
+        [10, 10],
+      ],
+      target.id,
+    );
+    await store.removeLink(link.id);
+    expect(store.scene()?.links).toEqual([]);
+    await history.undo();
+    expect(store.scene()?.links).toEqual([link]);
+  });
+
+  it('esquece o histórico ao abrir outro mapa', async () => {
+    const history = TestBed.inject(HistoryStore);
+    await store.placeEvent(eventId, { x: 1, y: 2 }, 500);
+    await store.load(map, null);
+    expect(history.canUndo()).toBe(false);
   });
 });
