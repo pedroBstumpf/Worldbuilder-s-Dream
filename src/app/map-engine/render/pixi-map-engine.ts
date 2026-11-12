@@ -1,6 +1,7 @@
 import { pointInPolygon, type Point } from '@domain/geometry';
 import {
   DEFAULT_BRUSH,
+  DEFAULT_LABEL_COLOR,
   DEFAULT_REGION_OPACITY,
   PIN_ICONS,
   polylineLength,
@@ -645,7 +646,7 @@ export class PixiMapEngine implements MapEngine {
       draft:
         this.tool === 'pin'
           ? { kind: 'pin', at, color, icon: PIN_ICONS[0] }
-          : { kind: 'label', at, color, size: 'md' },
+          : { kind: 'label', at, color: DEFAULT_LABEL_COLOR, size: 'md' },
     });
   }
 

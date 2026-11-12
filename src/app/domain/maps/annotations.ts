@@ -64,6 +64,8 @@ export const DEFAULT_BRUSH: BrushStyle = {
   dashed: false,
 };
 export const DEFAULT_REGION_OPACITY = 0.3;
+/** Rótulos nascem em giz com contorno escuro, legíveis sobre qualquer imagem (docs/05). */
+export const DEFAULT_LABEL_COLOR: HexColor = '#f4ead3';
 
 /** Teto de pontos de um traço (o `geometry` precisa ficar abaixo de 256 KB). */
 export const MAX_STROKE_POINTS = 4000;
@@ -135,7 +137,9 @@ export function readAnnotation(
     case 'label': {
       const at = readPoint(geometry);
       const size = LABEL_SIZES.find((s) => s === style['size']) ?? 'md';
-      shape = at ? { kind: 'label', at, color: color(style['color'], '#f4ead3'), size } : null;
+      shape = at
+        ? { kind: 'label', at, color: color(style['color'], DEFAULT_LABEL_COLOR), size }
+        : null;
       break;
     }
     case 'stroke': {
