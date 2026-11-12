@@ -64,7 +64,8 @@ test.describe('maps: import, tree, scale and links', () => {
 
     await expect(canvas(page, 'valmora mapa antigo')).toBeVisible();
     await expect(toast(page, text.import.created('valmora mapa antigo'))).toBeVisible();
-    await expect(page).toHaveURL(/\?map=[0-9a-f-]{36}$/);
+    // O instante da linha do tempo (`&t=`) chega à URL depois de uma pausa.
+    await expect(page).toHaveURL(/\?map=[0-9a-f-]{36}(&t=-?\d+)?$/);
     await expect(page.locator('wd-map-canvas canvas')).toHaveCount(1);
     // O envio em segundo plano termina (o anel de progresso some).
     await expect(page.getByRole('status').filter({ hasText: text.upload.saving })).toHaveCount(0);

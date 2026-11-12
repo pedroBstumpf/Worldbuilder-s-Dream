@@ -664,7 +664,8 @@ export default class WorldShellPage {
     // Instante da linha do tempo na URL (`?t=`), com espera (docs/06 §7).
     effect((onCleanup) => {
       const tick = this.timeline.currentTick();
-      if (this.store.status() !== 'ready') return;
+      // Sem mapa não há linha do tempo (só a área de importação).
+      if (this.store.status() !== 'ready' || !this.store.activeMap()) return;
       const timer = setTimeout(() => this.replaceParam('t', String(tick)), URL_TICK_DELAY_MS);
       onCleanup(() => clearTimeout(timer));
     });
