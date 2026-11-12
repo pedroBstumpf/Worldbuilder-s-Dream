@@ -39,6 +39,9 @@ export interface MapEngine {
   setSelection(ids: string[]): void;
   setLayerVisible(layer: LayerId, visible: boolean): void;
   setInsets(insets: ViewportInsets): void;             // área coberta pelas barras
+  previewDrop(drop: { entityId; clientX; clientY } | null): void; // fantasma do arraste (§6)
+  setTrails(tokenIds: string[]): void;                 // tokens com rastro à mostra
+  tokenPosition(tokenId: string): Point | null;        // âncora do menu do token
 
   screenToWorld(clientX: number, clientY: number): Point;
   worldToScreen(p: Point): Point;
@@ -52,9 +55,12 @@ export interface MapEngine {
 }
 
 type EngineEvent =
-  | { type: 'token:moved'; tokenId: string; to: Point; tick: number }
-  | { type: 'token:selected'; ids: string[] }
+  | { type: 'token:moved'; tokenId: string; to: Point; tick: number; correctPrevious: boolean } // Alt
+  | { type: 'token:selected'; ids: string[] }          // clique, Shift, retângulo, clique no fundo
   | { type: 'token:open'; tokenId: string }            // duplo clique
+  | { type: 'token:menu'; tokenId: string; anchor: Point } // botão direito
+  | { type: 'keyframe:moved'; keyframeId: string; to: Point } // losango do rastro arrastado
+  | { type: 'keyframe:picked'; keyframeId: string; tick: number } // clique no losango
   | { type: 'annotation:created'; draft: AnnotationDraft }
   | { type: 'annotation:changed'; id: string; patch: Partial<AnnotationDraft> }
   | { type: 'measure'; points: Point[]; distance: number }
@@ -66,10 +72,11 @@ type EngineEvent =
   | { type: 'event:open'; eventId: string }                     // clique num marcador de evento
   | { type: 'event:hover'; eventId: string | null; anchor: Point }; // popover
 ```
-- `ScenePatch` inclui `{ type: 'events'; events; window }`: os eventos do mundo (datas, cor, local) e a janela dos pontuais. Vale antes de qualquer cena, porque os eventos são do mundo, não do mapa.
+- `ScenePatch` inclui `{ type: 'events'; events; window }`: os eventos do mundo (datas, cor, local) e a janela dos pontuais, e `{ type: 'looks'; looks }`: nome, tipo, cor e retrato de cada entidade (a aparência dos tokens). Os dois valem antes de qualquer cena, porque são do mundo, não do mapa.
 - O motor é criado por uma fábrica assíncrona (`MAP_ENGINE_FACTORY`, padrão `createPixiMapEngine`), que carrega o PixiJS sob demanda num chunk próprio. Os testes de componente usam `FakeMapEngine` (`map-engine/testing`).
 - O componente `wd-map-canvas` é um adaptador fino: cria o motor, passa cena, ferramenta, camadas, margens das barras (a de baixo é a linha do tempo), instante (`engine.setTime(timeline.currentTick())`) e eventos, restaura a câmera salva e traduz `events` em saídas para as stores. Com o foco no mapa, as setas movem (`Shift`: passo grande), `+`/`−` aproximam e `0` enquadra.
-- **Ferramentas do M1**: `pan` (padrão), `select`, `calibrate` (escala) e `link`. No M3, `place`: um clique escolhe um ponto (Enter: o centro da área visível; Esc cancela), usado para marcar um evento. As demais chegam no M5.
+- **Ferramentas do M1**: `pan` (padrão), `select`, `calibrate` (escala) e `link`. No M3, `place`: um clique escolhe um ponto (Enter: o centro da área visível; Esc cancela), usado para marcar um evento e, no M4, a posição de uma entidade pela ficha. O Enter manda a ferramenta junto (`commitTool(tool)`), porque o input só chega ao motor na próxima detecção de mudanças. As demais chegam no M5.
+- **Tokens no motor (M4)**: `TokenLayer` desenha cada token com a forma do tipo (a mesma do avatar do Explorar), anel na cor da entidade, retrato, inicial ou ícone, e o nome num rótulo de pergaminho (sempre a partir de zoom 0,35; abaixo disso, no hover e na seleção). As texturas (96 px) são geradas por aparência e compartilhadas (`TokenFaces`). Arrastar um token funciona em "Mover mapa" e em "Selecionar"; em "Selecionar", arrastar o fundo desenha o retângulo de seleção e o botão do meio move o mapa. `TrailLayer` desenha o rastro (camada de rotas).
 - **Câmera**: zoom de metade do enquadramento até 8 px de tela por px do mapa; o ponto no meio da área visível nunca sai do mapa. A câmera de cada mapa fica em `profiles.ui_prefs.cameras` (as 60 mais recentes).
 - Animações de câmera ≤ 200 ms; com movimento reduzido, sem desaceleração nem zoom suave.
 
@@ -179,7 +186,16 @@ senão:
 | Menu → "Ir para próximo/anterior keyframe" | Move o slider |
 | `Del` | Diálogo: remover keyframe atual · remover token do mapa |
 
-**Snap temporal**: ao criar keyframe, o tick é arredondado à precisão atual da timeline (ex.: zoom em meses → início do dia), configurável.
+**Snap temporal**: ao criar keyframe, o tick é arredondado ao início da unidade da precisão atual da timeline (`TokenActions.keyframeTick()`).
+
+Na interface, keyframes são **posições** e os modos de interpolação têm nomes para quem escreve: **Constante** (`linear`), **Em salto** (`step`) e **Suave** (`ease`). Um keyframe novo herda o modo do anterior.
+
+**Onde editar (M4)**:
+- **No mapa**: arrastar o token grava a posição no instante; clique seleciona, `Shift` soma; duplo clique abre a ficha; botão direito abre o **menu do token** (abrir ficha, posição anterior/seguinte, mostrar caminho, movimento a partir da posição em vigor, sair do mapa aqui, remover a posição em vigor, tirar do mapa). `Del` pergunta se remove só a posição em vigor ou o token inteiro.
+- **Rastro**: aparece para os tokens selecionados e para os que têm "Mostrar caminho". Arrastar um losango move a posição; clicar leva o cursor até ela.
+- **Ficha da entidade** › Resumo › **No mapa**: as posições no mapa aberto (data, movimento, ir para, remover) e as ações "Marcar posição em <data>" (ferramenta `place`), "Mostrar no mapa", "Sair do mapa aqui" e "Tirar do mapa". É a alternativa por teclado ao arraste.
+- **Lista acessível**: os tokens visíveis no instante viram botões ("Aria: opções do token") que abrem o menu do token; a lista só muda quando um token aparece ou some.
+- Toda edição entra no desfazer (`HistoryStore`); remover o último keyframe leva o token junto.
 
 ## 4. Eventos no mapa
 - O ponto de um evento num mapa é um **token do evento** (`map_tokens.event_id`) com um só keyframe: "Marcar no mapa" na ficha do evento liga a ferramenta `place`. Sem token próprio, o marcador usa o token do local (`location_entity_id`), quando o local tiver token neste mapa (M4).
@@ -204,11 +220,11 @@ senão:
 Toda anotação tem `tick_start`/`tick_end` opcionais (nulos = sempre visível). Ex.: a fronteira de um reino desenhada em 300–450 desaparece depois de 450.
 
 ## 6. Drag-and-drop barra → mapa
-- Itens da barra direita usam **CDK Drag** (`cdkDrag` com `cdkDragPreview` personalizado mostrando o token).
-- O canvas não é uma `cdkDropList`; tratamos `cdkDragEnded`/`cdkDragReleased` e verificamos se o ponteiro está sobre o host do canvas (`elementFromPoint` + `contains`).
-- Coordenada final: `engine.screenToWorld(event.dropPoint.x, event.dropPoint.y)`.
-- Durante o arraste o motor mostra um **fantasma** na posição e destaca se a entidade já tem token neste mapa (nesse caso, o drop cria um keyframe em vez de um token novo).
-- Acessibilidade: alternativa por teclado — selecionar item, `Enter` → "Colocar no mapa" → posiciona no centro da viewport; setas movem; `Enter` confirma.
+- As linhas do Explorar usam o **arraste nativo do HTML** (`draggable`, tipo `application/x-wd-entity` com o id), que convive com a lista virtual (decisão de 2026-11-12; antes previsto com CDK Drag). A importação de imagem só reage a arrastes com arquivos, então os dois não se confundem.
+- Durante o arraste o navegador só mostra os tipos do `dataTransfer`; o id vai também para `EntityDrag` (`features/world/map`), que o mapa lê para o fantasma.
+- O host do canvas trata `dragover` (aceita e chama `engine.previewDrop`), `dragleave` e `drop`. Coordenada final: `engine.screenToWorld(clientX, clientY)`, limitada às bordas do mapa.
+- Durante o arraste o motor mostra um **fantasma** do token no ponteiro e destaca o token que a entidade já tem neste mapa (nesse caso, o drop cria uma posição em vez de um token novo). Depois do drop, o token fica selecionado.
+- Acessibilidade: alternativa por teclado na ficha da entidade, "Marcar posição em <data>" → Enter marca no centro da área visível (ou um clique escolhe o ponto); Esc cancela.
 
 ## 7. Linha do tempo (barra inferior)
 - `TimelineStore`: `currentTick`, `view` (faixa visível), largura do trilho, `isPlaying`, `speed` (`{ amount, unit }`: dias, meses ou anos do mundo por segundo real), `loop`; derivados: precisão do cursor, data formatada e janela dos eventos. A matemática (escala, régua alinhada aos anos da era, zoom, passos) fica em `domain/timeline/timeline-scale.ts`.
@@ -217,7 +233,7 @@ Toda anotação tem `tick_start`/`tick_end` opcionais (nulos = sempre visível).
 - Arrastar o cursor atualiza `currentTick` a cada `pointermove` (sem debounce — a avaliação é barata).
 - O valor de `t` é refletido na URL (`?t=`) com debounce de 300 ms (`replaceUrl`).
 - Zoom na timeline: roda do mouse sobre o trilho (centralizado no ponteiro); pan: arrastar o fundo do trilho; clicar no fundo move o cursor (arredondado à precisão do zoom).
-- Marcadores: eventos, keyframes da entidade selecionada (pequenos traços, M4), "agora da narrativa" (marcador opcional que o autor define como ponto atual da história).
+- Marcadores: eventos, keyframes da entidade em foco (pequenos traços dourados sob o trilho, M4: o token selecionado ou, sem seleção, a entidade da ficha aberta), "agora da narrativa" (marcador opcional que o autor define como ponto atual da história).
 - Componente implementado com **SVG** dentro do Angular (não Pixi), porque são poucas dezenas de elementos e precisam de acessibilidade: o cursor é um `role="slider"` com `aria-valuetext` = data formatada (mais os eventos que acontecem nela). No cursor: setas (Shift: dez unidades), Page Up/Down (evento anterior/seguinte), Home/End, `+`/`−`/`0` (zoom) e Espaço (play). `T` põe o foco no cursor; fora de controles, as setas passam o tempo.
 - O mundo sem mapa não mostra a linha do tempo (só a área de importação), nem grava `?t=`.
 
