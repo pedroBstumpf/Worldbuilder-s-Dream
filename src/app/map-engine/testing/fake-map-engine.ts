@@ -1,6 +1,7 @@
 import type { Point } from '@domain/geometry';
 import type { Tick, Uuid } from '@domain/models';
 import type { MapScene } from '@domain/ports';
+import { evaluateKeyframes, sortKeyframes } from '@domain/timeline';
 import {
   EngineEventBus,
   type Camera,
@@ -28,6 +29,7 @@ export class FakeMapEngine implements MapEngine {
   insets: ViewportInsets = { top: 0, right: 0, bottom: 0, left: 0 };
   readonly hiddenLayers = new Set<LayerId>();
   readonly patches: ScenePatch[] = [];
+  drop: { entityId: Uuid; clientX: number; clientY: number } | null = null;
   camera: Camera = { center: { x: 0, y: 0 }, zoom: 1 };
   fits = 0;
   committed = 0;
@@ -80,6 +82,20 @@ export class FakeMapEngine implements MapEngine {
 
   setInsets(insets: ViewportInsets): void {
     this.insets = insets;
+  }
+
+  previewDrop(drop: { entityId: Uuid; clientX: number; clientY: number } | null): void {
+    this.drop = drop;
+  }
+
+  /** Avalia os keyframes da cena (ou do último patch de tokens) no instante atual. */
+  tokenPosition(tokenId: Uuid): Point | null {
+    const patch = [...this.patches].reverse().find((p) => p.type === 'tokens');
+    const keyframes = patch?.type === 'tokens' ? patch.keyframes : (this.scene?.keyframes ?? []);
+    return evaluateKeyframes(
+      sortKeyframes(keyframes.filter((k) => k.tokenId === tokenId)),
+      this.tick,
+    );
   }
 
   screenToWorld(clientX: number, clientY: number): Point {

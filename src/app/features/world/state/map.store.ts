@@ -1,4 +1,4 @@
-import { inject } from '@angular/core';
+import { computed, inject } from '@angular/core';
 import type { MAP_STRINGS } from '@core/strings/map.strings';
 import type { Point } from '@domain/geometry';
 import {
@@ -32,7 +32,7 @@ import {
   type TokenKeyframeInput,
 } from '@domain/ports';
 import type { MapImageSource } from '@engine/map-engine';
-import { patchState, signalStore, withMethods, withState } from '@ngrx/signals';
+import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
 import { HistoryStore } from './history.store';
 
 export type SceneStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -41,6 +41,8 @@ interface MapState {
   readonly scene: MapScene | null;
   readonly image: MapImageSource | null;
   readonly status: SceneStatus;
+  /** Tokens selecionados no mapa (clique, Shift, retângulo). */
+  readonly selection: readonly Uuid[];
 }
 
 function tokenInput(token: MapToken): MapTokenInput {
@@ -62,7 +64,14 @@ export type MapEditLabel = keyof typeof MAP_STRINGS.history.labels;
  * (`HistoryStore`). Se a gravação falha, a cena volta a ser lida do repositório.
  */
 export const MapStore = signalStore(
-  withState<MapState>({ scene: null, image: null, status: 'idle' }),
+  withState<MapState>({ scene: null, image: null, status: 'idle', selection: [] }),
+  withComputed(({ scene, selection }) => ({
+    /** Seleção sem os tokens que saíram da cena. */
+    selectedTokens: computed(() => {
+      const tokens = scene()?.tokens ?? [];
+      return tokens.filter((token) => selection().includes(token.id));
+    }),
+  })),
   withMethods(
     (
       store,
@@ -140,7 +149,7 @@ export const MapStore = signalStore(
           const id = ++request;
           // As edições guardadas são da cena anterior.
           history.clear();
-          patchState(store, { status: 'loading' });
+          patchState(store, { status: 'loading', selection: [] });
           try {
             const scene = (await maps.getScene(map.id)) ?? {
               map,
@@ -170,7 +179,7 @@ export const MapStore = signalStore(
         clear(): void {
           request++;
           history.clear();
-          patchState(store, { scene: null, image: null, status: 'idle' });
+          patchState(store, { scene: null, image: null, status: 'idle', selection: [] });
         },
 
         async addLink(polygon: PolygonVertex[], targetMapId: Uuid): Promise<MapLink> {
@@ -243,6 +252,10 @@ export const MapStore = signalStore(
             const token = scene.tokens.find((t) => t.eventId === eventId);
             return token ? { removeTokens: [token.id] } : null;
           });
+        },
+
+        select(ids: readonly Uuid[]): void {
+          patchState(store, { selection: [...new Set(ids)] });
         },
 
         /** Token da entidade neste mapa (no máximo um por mapa). */

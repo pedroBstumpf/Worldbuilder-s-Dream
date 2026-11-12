@@ -17,6 +17,7 @@ import { IconComponent } from '@shared/ui/icon/icon.component';
 import { TabsComponent, tabPanelId, tabId, type TabItem } from '@shared/ui/tabs/tabs.component';
 import { TooltipDirective } from '@shared/ui/tooltip/tooltip.directive';
 import { EntityAvatarComponent } from '../entities/entity-avatar.component';
+import { ENTITY_DRAG_TYPE, EntityDrag } from '../map/entity-drag';
 import { EntityStore } from '../state/entity.store';
 import { EventStore } from '../state/event.store';
 import { WorldStore } from '../state/world.store';
@@ -25,8 +26,6 @@ import { WorldStore } from '../state/world.store';
 const RESIZE_STEP = 16;
 /** Altura de cada linha da lista virtual. */
 const ROW_HEIGHT = 52;
-/** Tipo de dado arrastado de uma linha (o mapa aceita no M4). */
-export const ENTITY_DRAG_TYPE = 'application/x-wd-entity';
 
 export type ExplorerTab = 'characters' | 'locations' | 'collection' | 'events' | 'history';
 type CollectionFilter = 'all' | 'faction' | 'item' | 'note';
@@ -203,6 +202,7 @@ interface Row {
                     [attr.aria-current]="row.id === store.openId() ? 'true' : null"
                     (click)="openEntity.emit(row.id)"
                     (dragstart)="onRowDrag($event, row)"
+                    (dragend)="drag.entityId.set(null)"
                   >
                     <wd-entity-avatar
                       [kind]="row.kind"
@@ -486,6 +486,7 @@ export class ExplorerPanelComponent {
   protected readonly store = inject(EntityStore);
   protected readonly events = inject(EventStore);
   private readonly world = inject(WorldStore);
+  protected readonly drag = inject(EntityDrag);
   protected readonly text = MAP_STRINGS.explorer;
   protected readonly strings = ENTITY_STRINGS.explorer;
   protected readonly kindNames = ENTITY_KIND_STRINGS;
@@ -643,6 +644,7 @@ export class ExplorerPanelComponent {
     event.dataTransfer.effectAllowed = 'copy';
     event.dataTransfer.setData(ENTITY_DRAG_TYPE, row.id);
     event.dataTransfer.setData('text/plain', row.title);
+    this.drag.entityId.set(row.id);
   }
 
   protected onDrag(event: CdkDragMove): void {
