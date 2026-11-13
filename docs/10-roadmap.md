@@ -47,6 +47,21 @@ A ordem de construção é **front-end → back-end e banco → integrações �
 
 **Marco de apresentação ao cliente**: as jornadas 1 e 2 do `docs/03` passam em modo local; RNF-01 a RNF-04 medidos.
 
+### Medição dos RNF (F1-07, 2026-11-13, tag `v0.1.0-demo`)
+As jornadas estão em `e2e/journeys.spec.ts`, com axe (WCAG 2.2 AA) em cada tela fora do canvas. As medições vêm de `pnpm perf:rnf` (`scripts/perf/rnf.mjs`): Chromium 158 do Playwright com janela visível (GPU Intel UHD Graphics 770), viewport de 1440 × 900, CPU normal (1×) e 4× mais lenta (hardware fraco).
+
+| RNF | Meta | Medido (1×) | Medido (4×) | |
+|-----|------|-------------|-------------|---|
+| RNF-01 · canvas | 60 fps com 300 tokens visíveis | 60,0 fps no play e ao arrastar o slider, 0% de quadros > 33 ms | 56,7 fps (play), 57,4 fps (slider) | ✔ |
+| RNF-02 · slider | posições recalculadas em < 8 ms por quadro | `setTime` p95 0,2 ms, pior 0,4 ms | p95 1,8 ms, pior 3,0 ms | ✔ |
+| RNF-03 · carga | capa interativa < 2,5 s em banda larga; inicial < 300 kB gzip | capa interativa em 0,72 s (mediana de 5, pior 0,75 s); LCP 0,82 s; bundle inicial de produção 98,1 kB gzip | capa em 0,93 s | ✔ |
+| RNF-04 · livro | ≥ 50 fps; nunca bloquear mais de 1,5 s | 58–61 fps nas quatro transições; com Esc, a tela chega em ≤ 0,8 s | 56–61 fps; com Esc, ≤ 0,9 s | ✔ |
+
+- **Condições**: RNF-01 e RNF-02 rodam no servidor de desenvolvimento (build sem otimização, ou seja, pior caso), com 300 tokens andando entre duas posições, no play e arrastando o cursor da linha do tempo. RNF-03 usa um build otimizado em modo local (o de produção ainda não roda sem o Supabase) com rede de 20 Mbit/s e 40 ms e cache vazio; o tamanho do bundle vem do build de produção (`pnpm build && node scripts/ci/check-bundle.mjs`). RNF-04 usa o mesmo build otimizado.
+- **Transições** (1×): abrir o livro 1,6 s; virar a página até o mapa 2,1 s (inclui criar o mundo e montar a tela); voltar ao livro 1,7 s; fechar 1,6 s. Pular com Esc é o que garante a meta de 1,5 s: a virada até o mapa leva até 0,9 s depois do Esc (o zoom até o mapa termina antes), as outras menos de 0,1 s. A maior tarefa longa foi de 101 ms, ao criar o mundo com a CPU 4× mais lenta.
+- **Sem GPU** (headless, SwiftShader), o mapa fica em 33–41 fps a 1×, como já registrado no [ADR-0004](adr/0004-pixijs-como-motor-do-mapa.md); `setTime` continua abaixo de 1 ms.
+- **Correção encontrada na medição**: o minificador do build otimizado reescreve `1200ms` como `1.2s`, e o livro lia os tokens `--wd-dur-*` como milissegundos sem olhar a unidade. Por isso, em produção, as transições virariam saltos de cerca de 1 ms. O `readBookTimings` agora entende `ms` e `s`.
+
 ## Fase 2 — Back-end e banco (4–6 semanas)
 No Supabase, back-end e banco são a mesma peça (schema, RLS e funções), por isso entram juntos.
 - Projeto Supabase; migrações do `docs/07` com RLS e pgTAP; lista de acesso **só com o e-mail do administrador**; hook *before user created*.
