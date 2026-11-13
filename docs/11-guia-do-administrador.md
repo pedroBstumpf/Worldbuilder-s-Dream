@@ -114,6 +114,7 @@ A conta Google é a única forma de entrar no app, guarda os textos (Docs) e a p
 5. 🔧 Em *Authentication › Providers*: deixe **só o Google** habilitado (configurado na seção 7).
 6. 🔧 Em *Authentication › Hooks*: registre o hook **Before User Created** (`private.hook_before_user_created`), depois que a migração existir.
 7. Se houver quem desenvolva: *Organization › Team* → convide a pessoa.
+8. 🔧 Projeto de desenvolvimento: na mesma organização, crie o projeto **`wbdream-dev`** (mesma região, plano Free, senha também no Bitwarden). Ele não guarda dados reais e serve para desenvolver e testar o banco sem Docker ([ADR-0014](adr/0014-desenvolvimento-sem-docker-com-projeto-na-nuvem.md)).
 
 ## 7. Google Cloud (login com Google, Docs, Drive, Picker)
 1. Acesse **console.cloud.google.com** e crie o projeto **`wbdream`**.

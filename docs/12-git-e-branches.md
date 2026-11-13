@@ -12,7 +12,7 @@
 O Claude Code lê automaticamente o `CLAUDE.md` da raiz, que importa o `AGENTS.md`.
 
 ## Começar o projeto (uma vez)
-1. **Instalar**: Git (no Windows, *Git for Windows*), Node.js LTS, pnpm (`corepack enable` ou `npm i -g pnpm`), Cursor, GitHub Desktop. Docker e Supabase CLI só na Fase 2.
+1. **Instalar**: Git (no Windows, *Git for Windows*), Node.js LTS, pnpm (`corepack enable` ou `npm i -g pnpm`), Cursor, GitHub Desktop. Na Fase 2 a Supabase CLI vem pelo `pnpm install` (sem Docker; ADR-0014).
 2. **Criar o repositório no GitHub Desktop**: *File › New repository*, nome `worldbuilders-dream`, **sem** README (desmarcado), *Git ignore*: **Node**, *License*: nenhuma.
 3. **Copiar a documentação** para a pasta do repositório **mantendo a estrutura**:
    ```

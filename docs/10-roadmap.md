@@ -94,7 +94,7 @@ Arte final da capa, os 5 componentes animados do MVP (Skiper UI/Magic UI), polim
 | Cliente achar que a demo está quase pronta | Médio | Selo de modo demonstração; apresentar este roadmap junto |
 | Animações do livro levarem mais tempo que o previsto | Médio | Prova de conceito na Fase 0; versão curta automática com fps baixo; puláveis |
 | Desempenho do canvas com imagens grandes | Alto | Limite de 8192 px, culling, atlas; prova de conceito na Fase 0 |
-| Modelo local divergir do banco | Médio | Modelos seguem o `docs/07`; teste que importa um JSON exportado no Supabase local na Fase 2 |
+| Modelo local divergir do banco | Médio | Modelos seguem o `docs/07`; teste que importa um JSON exportado no `wbdream-dev` na Fase 2 |
 | Conversor de Docs não cobrir os recursos usados nos textos reais | Médio | Fixtures com Docs reais do cliente; aviso "abra no Google Docs" para o que não for suportado |
 | Job de backup parar sem ninguém notar | Alto | E-mail de falha do GitHub; rotina mensal do `docs/11`; teste trimestral de restauração |
 | Mudanças nas APIs do Google ou no plano gratuito do Supabase | Médio | Portas de repositório; Pro disponível sem migração |

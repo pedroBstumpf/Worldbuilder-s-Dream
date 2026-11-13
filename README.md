@@ -49,13 +49,16 @@ pnpm exec playwright install chromium   # uma vez, para os testes e2e
 pnpm start                     # http://localhost:4200
 ```
 
-A partir da Fase 2 (back-end), também Docker e Supabase CLI:
+A partir da Fase 2 (back-end), o banco de desenvolvimento é o projeto `wbdream-dev` na nuvem, sem Docker ([ADR-0014](docs/adr/0014-desenvolvimento-sem-docker-com-projeto-na-nuvem.md)). A Supabase CLI vem pelo `pnpm install`:
 
 ```bash
-supabase start                 # Postgres/Auth/Storage locais
-supabase db reset              # aplica as migrações (banco vazio, sem dados de exemplo)
-pnpm gen:types                 # tipos TS a partir do schema
+pnpm exec supabase login                                    # uma vez (abre o navegador)
+pnpm exec supabase link --project-ref vytyunaoxxczrjlauhqk  # uma vez: liga o repositório ao wbdream-dev
+pnpm db:push                   # aplica no wbdream-dev as migrações que faltam
+pnpm db:test                   # pgTAP: cada arquivo numa transação desfeita no fim
+pnpm gen:types                 # tipos TS a partir do schema do wbdream-dev
 ```
+O `pnpm db:test` lê `DB_TEST_URL` do `.env` (copie o `.env.example`): a string do *Session pooler* do `wbdream-dev`, com a senha do banco. O `.env` nunca é commitado.
 Variáveis de ambiente: [docs/02 › Ambientes](docs/02-arquitetura-e-backend.md#ambientes-e-configuração).
 
 ## Status

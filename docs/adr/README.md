@@ -17,6 +17,7 @@ Formato baseado em Michael Nygard. **Enquanto o projeto estiver em especificaç�
 | [0011](0011-navegacao-como-livro.md) | Navegação principal como um livro | Aceito |
 | [0012](0012-identidade-visual-couro-pergaminho-ouro.md) | Identidade visual: couro, pergaminho e ouro | Aceito |
 | [0013](0013-login-google-e-acesso-fechado.md) | Login só com Google e acesso fechado por convite | Aceito |
+| [0014](0014-desenvolvimento-sem-docker-com-projeto-na-nuvem.md) | Desenvolvimento sem Docker, com projeto Supabase de desenvolvimento na nuvem | Aceito |
 
 ## Modelo
 ```markdown
