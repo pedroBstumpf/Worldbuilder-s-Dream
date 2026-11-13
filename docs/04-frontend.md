@@ -208,7 +208,7 @@ Registrados num `ShortcutService` (`core/shortcuts`) com escopo, desativados qua
 
 ## Acessibilidade
 - Componentes próprios seguem os padrões WAI-ARIA, com o CDK cuidando de foco, teclado e anúncios.
-- O canvas expõe uma **lista acessível espelhada** dos tokens visíveis no instante atual (M4). Já no M1, os links do mapa viram botões ("Abrir mapa: …") que aparecem ao receber foco.
+- O canvas expõe uma **lista acessível espelhada** dos tokens visíveis no instante atual (M4); cada item descreve onde o token está, em % inteiros do mapa ("Posição no mapa: 40% da esquerda, 55% do topo."), e é por essa descrição que o e2e confere a interpolação. Já no M1, os links do mapa viram botões ("Abrir mapa: …") que aparecem ao receber foco.
 - `prefers-reduced-motion` respeitado em todas as animações.
 - Contraste AA verificado e foco sempre visível (`docs/05`).
 

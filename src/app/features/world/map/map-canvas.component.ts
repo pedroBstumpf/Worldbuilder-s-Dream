@@ -93,10 +93,12 @@ export interface EventHover {
                 type="button"
                 class="link wd-focus"
                 [attr.data-token]="token.id"
+                [attr.aria-describedby]="'wd-token-at-' + token.id"
                 (click)="openTokenMenu(token.id)"
               >
                 {{ tokenText.listItem(token.name) }}
               </button>
+              <span class="sr-only" [id]="'wd-token-at-' + token.id">{{ token.position }}</span>
             </li>
           }
         </ul>
@@ -299,24 +301,38 @@ export class MapCanvasComponent {
   });
 
   /**
-   * Lista acessível espelhada (docs/04 › Acessibilidade): tokens visíveis no instante. Só
-   * muda quando um token aparece ou some, não a cada quadro do play.
+   * Lista acessível espelhada (docs/04 › Acessibilidade): tokens visíveis no instante, com a
+   * posição em % inteiros do mapa (docs/06: o e2e confere a interpolação por aqui). Só muda
+   * quando um token aparece, some ou anda 1% do mapa, não a cada quadro do play.
    */
   protected readonly visibleTokens = computed(
     () => {
       const tick = this.time();
+      const map = this.scene()?.map;
+      const percent = (value: number, size: number | undefined) =>
+        size ? Math.round((value / size) * 100) : 0;
       const names = new Map(this.looks().map((look) => [look.entityId, look.name]));
       return this.entityTokens()
-        .filter(({ keyframes }) => evaluateKeyframes(keyframes, tick) !== null)
-        .map(({ token }) => ({
-          id: token.id,
-          name: names.get(token.entityId ?? '') ?? this.tokenText.unnamed,
-        }))
+        .flatMap(({ token, keyframes }) => {
+          const at = evaluateKeyframes(keyframes, tick);
+          if (!at) return [];
+          return {
+            id: token.id,
+            name: names.get(token.entityId ?? '') ?? this.tokenText.unnamed,
+            position: this.tokenText.position(
+              percent(at.x, map?.width),
+              percent(at.y, map?.height),
+            ),
+          };
+        })
         .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
     },
     {
       equal: (a, b) =>
-        a.length === b.length && a.every((t, i) => t.id === b[i]?.id && t.name === b[i]?.name),
+        a.length === b.length &&
+        a.every(
+          (t, i) => t.id === b[i]?.id && t.name === b[i]?.name && t.position === b[i]?.position,
+        ),
     },
   );
 
