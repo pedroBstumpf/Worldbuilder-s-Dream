@@ -196,7 +196,7 @@ create table public.entities (
 );
 create index on public.entities (world_id, kind) where deleted_at is null;
 create index entities_search_idx on public.entities using gin (search);
--- Observação: to_tsvector com unaccent exige função IMMUTABLE wrapper; ver migração de busca.
+-- Na migração, cada coalesce(...) passa por public.wd_unaccent(), o wrapper IMMUTABLE do unaccent.
 
 create table public.entity_relations (
   id          uuid primary key default gen_random_uuid(),
@@ -484,9 +484,10 @@ create policy "world assets write" on storage.objects for insert to authenticate
 |---------|---------|--------|
 | `set_updated_at` | todas com `updated_at` | `updated_at = now()` |
 | `bump_version` | tabelas com `version` | `version = old.version + 1` |
-| `check_world_consistency` | tabelas filhas | garante `world_id` coerente com o pai |
+| `check_world_consistency` | tabelas filhas, `worlds` (capa), `calendars` | garante `world_id` coerente com os pais e imutável |
 | `handle_new_user` | `auth.users` (after insert) | cria `profiles` |
-| `check_asset_size` | `assets` | limites técnicos de tamanho (`docs/02`) |
+
+Os limites técnicos das imagens (`docs/02`: até 20 MB, 8192 px; no Storage só PNG, JPEG e WebP) são restrições `check` de `assets`, não trigger. Erros dos triggers: `23514`/`world_mismatch` e `23503`/`not_found` (menção cuja origem não existe).
 
 ## Índices e desempenho
 - Índices em **todas as FKs** usadas em filtros e em `world_id`.
@@ -525,6 +526,8 @@ Um mundo exportado é **um único arquivo `.json`** com as imagens embutidas em 
 - Porta: `WorldTransferRepository` (`exportWorld`, `importWorld`); a exclusão definitiva fica em `WorldRepository.deleteForever` (só para mundos na lixeira), que no modo local apaga numa transação o que o `on delete cascade` apagaria.
 
 ## Testes do banco (pgTAP)
+Arquivos `supabase/tests/*.test.sql`, rodados por `pnpm db:test` (ADR-0014): cada arquivo roda numa transação desfeita no fim, precedido por `supabase/tests/_helpers.sql` (usuários, mundos completos e troca de papel em `tests.*`).
+
 Para cada tabela: (1) RLS habilitado; (2) dono lê/escreve; (3) editor lê/escreve mas não gerencia membros nem exclui o mundo; (4) estranho não lê; (5) `anon` não acessa nada; (6) triggers de consistência rejeitam `world_id` incoerente.
 ```sql
 -- supabase/tests/entities_rls.test.sql (trecho)

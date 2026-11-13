@@ -8,3 +8,5 @@ coverage/
 playwright-report/
 test-results/
 public/
+# Gerado por pnpm gen:types
+src/app/core/supabase/database.types.ts

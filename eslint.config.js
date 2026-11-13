@@ -32,7 +32,14 @@ const angularImports = {
 };
 
 module.exports = defineConfig([
-  globalIgnores(['dist/', '.angular/', 'coverage/', 'playwright-report/', 'test-results/']),
+  globalIgnores([
+    'dist/',
+    '.angular/',
+    'coverage/',
+    'playwright-report/',
+    'test-results/',
+    'src/app/core/supabase/database.types.ts', // gerado por pnpm gen:types
+  ]),
   {
     files: ['**/*.ts'],
     extends: [
