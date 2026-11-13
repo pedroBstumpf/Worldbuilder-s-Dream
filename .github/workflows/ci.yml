@@ -72,6 +72,27 @@ jobs:
       - name: Orçamento inicial e segredos no bundle
         run: node scripts/ci/check-bundle.mjs
 
+  db:
+    name: banco (migrações + pgTAP)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Supabase local só com o Postgres (Docker do runner): migrações aplicadas num banco vazio.
+      - run: pnpm exec supabase db start
+      - run: pnpm exec supabase migration up --local
+      - run: pnpm db:test
+        env:
+          DB_TEST_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      - name: Erros de tipo nas funções (plpgsql_check)
+        run: pnpm exec supabase db lint --level error --fail-on error
+
   e2e:
     name: e2e + axe
     runs-on: ubuntu-latest
