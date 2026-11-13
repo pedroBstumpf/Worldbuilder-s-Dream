@@ -131,12 +131,12 @@ Testes fortes onde há risco, sem metas de cobertura artificiais:
 |-------|-----------|------|
 | Domínio | **Vitest** | calendário, interpolação, geometria, conversor de Google Docs, detecção de nomes/datas — casos extensos, incluindo eras negativas e anos bissextos |
 | Stores e repositórios | Vitest + Angular Testing Library | comandos de desfazer/refazer, atualizações otimistas, conflito de versão |
-| Banco | **pgTAP** (`supabase test db`) | RLS de **todas** as tabelas, RPCs, triggers, hook de lista de acesso |
+| Banco | **pgTAP** (`pnpm db:test`: cada arquivo numa transação desfeita, no `wbdream-dev` ou no Supabase local do CI; ADR-0014) | RLS de **todas** as tabelas, RPCs, triggers, hook de lista de acesso |
 | Edge Functions | `deno test` | autorização e validação |
 | E2E | **Playwright** + `@axe-core/playwright` | 3 jornadas (abaixo) e axe nas telas fora do canvas |
 
 ### Jornadas E2E
-1. **Capa → biblioteca → mapa**: login (usuário de teste do Supabase local), livro abre, criar mundo, virada de página até a área de importação; repetir com `prefers-reduced-motion` e com `Esc` (pular).
+1. **Capa → biblioteca → mapa**: login (usuário de teste criado pelo próprio teste), livro abre, criar mundo, virada de página até a área de importação; repetir com `prefers-reduced-motion` e com `Esc` (pular).
 2. **Mapa e tempo**: soltar imagem → mapa criado; criar personagem → arrastar para o mapa → mover slider → mover token → verificar interpolação pela lista acessível espelhada; régua; desfazer/refazer.
 3. **Convite e isolamento**: o administrador convida um e-mail (envio do Resend substituído por um *fake* que captura o link) → o convidado aceita e entra com a conta certa → vê só os mundos incluídos, como editor; com a conta errada, é recusado; token reutilizado ou expirado é recusado; após revogar, a pessoa não entra mais.
 

@@ -7,7 +7,7 @@
 4. **Motor do mapa isolado.** O canvas (PixiJS) fica atrás de uma fachada, sem conhecer Angular. Ver [ADR-0004](adr/0004-pixijs-como-motor-do-mapa.md).
 5. **O texto do usuário pode morar no Google Docs.** O app guarda referências e cache; o Doc é a fonte da verdade. Ver [ADR-0008](adr/0008-google-docs-como-fonte-do-texto.md).
 6. **Não perder dados.** Backup diário automático fora do Supabase, criptografado. Ver `docs/09`.
-7. **Simples de operar.** Dois ambientes (local e produção), deploy a cada merge e nenhuma peça que exija atenção diária.
+7. **Simples de operar.** Dois ambientes de banco (desenvolvimento e produção), deploy a cada merge e nenhuma peça que exija atenção diária.
 
 ## Visão de contexto
 ```mermaid
@@ -145,12 +145,13 @@ Imagem solta na janela → validação e conversão para WebP num Web Worker →
 ## Ambientes e configuração
 | Ambiente | Front | Supabase | Uso |
 |----------|-------|----------|-----|
-| `local` | `ng serve` (`dataSource: 'local'` ou `'supabase'`) | `supabase start` (Docker), banco vazio | Desenvolvimento e testes |
+| `local` | `ng serve` (`dataSource: 'local'` ou `'supabase'`) | projeto `wbdream-dev` na nuvem (plano gratuito, `sa-east-1`), sem dados reais ([ADR-0014](adr/0014-desenvolvimento-sem-docker-com-projeto-na-nuvem.md)) | Desenvolvimento e testes |
+| `ci` | — | Supabase local no runner do GitHub (Docker), banco vazio a cada execução | Migrações do zero + pgTAP |
 | `production` | Cloudflare Pages (domínio próprio) | projeto `wbdream` (plano gratuito, região `sa-east-1`) | Uso real |
 
 Não há demo publicada: nas Fases 0–1, o cliente acompanha o progresso por **vídeos de tela** do app rodando localmente em modo local (`dataSource: 'local'`, dados no IndexedDB, login simulado).
 
-A ordem de construção (front primeiro, com adaptadores locais) está em [`docs/10`](10-roadmap.md). Não há staging nem deploys de preview: com poucos usuários, os testes locais (incluindo pgTAP e e2e contra o Supabase local) cumprem esse papel.
+A ordem de construção (front primeiro, com adaptadores locais) está em [`docs/10`](10-roadmap.md). Não há staging nem deploys de preview: com poucos usuários, o `wbdream-dev` e o CI (pgTAP num Supabase local criado do zero) cumprem esse papel.
 
 **Variáveis públicas do front** (entram no bundle; nunca segredos):
 ```

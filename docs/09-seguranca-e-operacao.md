@@ -174,7 +174,7 @@ jobs:
 3. Arquivos: `rclone sync cofre:storage/ supabase-s3:world-assets`.
 4. Reconfigurar segredos das Edge Functions e o hook de autenticação.
 5. Os refresh tokens do Google guardados no Vault não valem num projeto novo: os usuários fazem "Reconectar Google".
-6. **Teste de restauração a cada trimestre** no Supabase local (`supabase start` + passos acima), conferindo que mundos, usuários (`auth.users`) e metadados do Storage voltaram. O primeiro teste confirma se os dumps incluem tudo; ajustar os parâmetros do `db dump` se não incluírem.
+6. **Teste de restauração a cada trimestre** no projeto `wbdream-dev` (zerado antes; não tem dados reais, ADR-0014) com os passos acima, conferindo que mundos, usuários (`auth.users`) e metadados do Storage voltaram. O primeiro teste confirma se os dumps incluem tudo; ajustar os parâmetros do `db dump` se não incluírem.
 
 ## Pausa do projeto
 - O job diário gera atividade no banco, o que evita a pausa por inatividade (7 dias no plano gratuito).
