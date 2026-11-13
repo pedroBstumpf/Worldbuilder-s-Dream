@@ -50,13 +50,22 @@ export function usesCurl(motion: BookMotion): boolean {
   return motion === 'full';
 }
 
-/** Lê os tokens de movimento (`--wd-dur-*`, `--wd-ease-page`) do documento. */
+/** Duração CSS (`1200ms`, `1.2s`, `.45s`) em milissegundos; `null` se não for uma duração. */
+function cssTimeToMs(value: string): number | null {
+  const match = /^([+-]?(?:\d+\.?\d*|\.\d+))(ms|s)$/i.exec(value.trim());
+  if (!match) return null;
+  const amount = Number(match[1]);
+  return match[2]?.toLowerCase() === 's' ? amount * 1000 : amount;
+}
+
+/**
+ * Lê os tokens de movimento (`--wd-dur-*`, `--wd-ease-page`) do documento. O minificador
+ * do build de produção reescreve `1200ms` como `1.2s`: a unidade sempre conta.
+ */
 export function readBookTimings(root: Element = document.documentElement): BookTimings {
   const styles = getComputedStyle(root);
-  const ms = (name: string, fallback: number) => {
-    const value = Number.parseFloat(styles.getPropertyValue(name));
-    return Number.isFinite(value) ? value : fallback;
-  };
+  const ms = (name: string, fallback: number) =>
+    cssTimeToMs(styles.getPropertyValue(name)) ?? fallback;
   return {
     cover: ms('--wd-dur-cover', 1200),
     coverShort: ms('--wd-dur-cover-short', 500),
