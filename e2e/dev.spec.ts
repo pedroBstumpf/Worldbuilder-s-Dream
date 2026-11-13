@@ -1,10 +1,6 @@
-import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { DEV_STRINGS } from '../src/app/core/strings/dev.strings';
-
-const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
-
-const axe = (page: Page) => new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
+import { axeViolations, settled } from './support/app';
 
 test.describe('/dev showcase', () => {
   test.beforeEach(async ({ page }) => {
@@ -13,7 +9,7 @@ test.describe('/dev showcase', () => {
   });
 
   test('has no wcag a/aa violations', async ({ page }) => {
-    expect((await axe(page)).violations).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
   });
 
   test('dialog traps focus and returns it on Escape', async ({ page }) => {
@@ -23,7 +19,9 @@ test.describe('/dev showcase', () => {
 
     const dialog = page.getByRole('dialog', { name: DEV_STRINGS.dialogs.simpleTitle });
     await expect(dialog).toBeVisible();
-    expect((await axe(page)).violations).toEqual([]);
+    // O axe mediria o contraste do botão no meio do fade de entrada.
+    await settled(dialog);
+    expect(await axeViolations(page)).toEqual([]);
 
     for (let i = 0; i < 5; i++) {
       await page.keyboard.press('Tab');
