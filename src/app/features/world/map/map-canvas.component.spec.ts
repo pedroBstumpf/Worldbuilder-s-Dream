@@ -242,6 +242,58 @@ describe('MapCanvasComponent', () => {
     expect(host.openedEvents).toEqual(['e1']);
   });
 
+  it('describes where each visible token is, interpolated at the current instant', async () => {
+    const { fixture, host } = await setUp();
+    const keyframe = (id: string, tick: number, x: number, y: number) => ({
+      id,
+      worldId: 'w',
+      tokenId: 't1',
+      tick,
+      x,
+      y,
+      visible: true,
+      interpolation: 'linear' as const,
+      note: null,
+      updatedAt: '',
+    });
+    host.scene.set({
+      ...scene(),
+      tokens: [
+        {
+          id: 't1',
+          worldId: 'w',
+          mapId: 'm1',
+          entityId: 'c1',
+          eventId: null,
+          size: 1,
+          style: {},
+          createdAt: '',
+        },
+      ],
+      keyframes: [keyframe('k1', 100, 100, 100), keyframe('k2', 200, 900, 400)],
+    });
+    const item = () =>
+      fixture.nativeElement.querySelector(
+        'nav[aria-label="Tokens no mapa agora"] button',
+      ) as HTMLButtonElement | null;
+    const description = () =>
+      fixture.nativeElement.querySelector(`#${item()?.getAttribute('aria-describedby')}`)
+        ?.textContent;
+
+    host.time.set(50);
+    await fixture.whenStable();
+    expect(item()).toBeNull();
+
+    host.time.set(150);
+    await fixture.whenStable();
+    expect(item()?.textContent?.trim()).toBe('Sem nome: opções do token');
+    expect(description()).toBe('Posição no mapa: 50% da esquerda, 50% do topo.');
+
+    host.time.set(300);
+    await fixture.whenStable();
+    expect(description()).toBe('Posição no mapa: 90% da esquerda, 80% do topo.');
+  });
+
   it('turns token events into outputs and passes the selection', async () => {
     const { engine, fixture, host } = await setUp();
     engine.events.emit({

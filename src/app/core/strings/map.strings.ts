@@ -207,6 +207,8 @@ export const MAP_STRINGS = {
     /** Lista acessível espelhada (docs/04 › Acessibilidade). */
     list: 'Tokens no mapa agora',
     listItem: (name: string) => `${name}: opções do token`,
+    /** Descrição de cada item da lista: onde o token está agora, em % do mapa. */
+    position: (x: number, y: number) => `Posição no mapa: ${x}% da esquerda, ${y}% do topo.`,
     menu: {
       label: (name: string) => `Token de ${name}`,
       openSheet: 'Abrir ficha',
