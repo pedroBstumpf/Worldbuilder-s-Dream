@@ -37,8 +37,9 @@ pnpm test           # Vitest (uma execução; `pnpm test:watch` para modo contí
 pnpm e2e            # Playwright (+ axe)
 pnpm lint           # ESLint (com fronteiras de camadas) + Prettier + Stylelint
 pnpm format         # corrige formatação (Prettier + Stylelint)
-pnpm db:test        # pgTAP (a partir da Fase 2)
-pnpm gen:types      # tipos do banco (a partir da Fase 2)
+pnpm db:push        # aplica as migrações no wbdream-dev (Fase 2; ADR-0014)
+pnpm db:test        # pgTAP contra DB_TEST_URL do .env, sem Docker (Fase 2)
+pnpm gen:types      # tipos do banco a partir do wbdream-dev (Fase 2)
 ```
 
 ## Definição de pronto
