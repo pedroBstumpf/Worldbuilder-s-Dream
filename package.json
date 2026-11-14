@@ -14,7 +14,7 @@
     "lint": "ng lint && prettier --check . && stylelint \"src/**/*.css\" && node scripts/ci/check-contrast.mjs",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.spec.json --noEmit",
     "format": "prettier --write . && stylelint \"src/**/*.css\" --fix",
-    "db:push": "supabase db push",
+    "db:push": "supabase db push --remote",
     "db:test": "node --env-file-if-exists=.env scripts/db/test.mjs",
     "gen:types": "supabase gen types typescript --project-id vytyunaoxxczrjlauhqk --schema public > src/app/core/supabase/database.types.ts",
     "prepare": "lefthook install"

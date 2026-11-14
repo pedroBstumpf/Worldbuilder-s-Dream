@@ -13,7 +13,7 @@ Fatos (verificados em 13/11/2026):
 
 ## Decisão
 - **Desenvolvimento** usa um projeto Supabase na nuvem, **`wbdream-dev`** (organização *Worldbuilder's Dream*, plano gratuito, `sa-east-1`), sem dados reais. Produção continua no projeto **`wbdream`** (F2-07).
-- As migrações em `supabase/migrations/` são a fonte da verdade. No `wbdream-dev` elas entram só por `pnpm db:push` (`supabase db push`). O servidor MCP do Supabase (`.mcp.json`) fica em **modo leitura** e serve apenas para consultar o projeto (extensões, região, advisors); nunca aplica migrações nem SQL de escrita.
+- As migrações em `supabase/migrations/` são a fonte da verdade. No `wbdream-dev` elas entram só por `pnpm db:push` (`supabase db push --remote`; sem `--remote`, a CLI 3 envia para o banco local). O servidor MCP do Supabase (`.mcp.json`) fica em **modo leitura** e serve apenas para consultar o projeto (extensões, região, advisors); nunca aplica migrações nem SQL de escrita.
 - **pgTAP sem Docker**: `pnpm db:test` (script Node com `pg`) roda cada arquivo de `supabase/tests/` numa transação que é desfeita no fim, contra o banco de `DB_TEST_URL` (no `.env`, nunca commitado). Os testes criam e descartam os próprios dados; nada fica no `wbdream-dev`.
 - **CI** continua usando o Supabase local (Docker do runner): banco limpo a cada execução, migrações aplicadas do zero e o mesmo `pnpm db:test`.
 - O **teste de restauração** (`docs/09`) é feito no `wbdream-dev`, que pode ser zerado sem perda.
