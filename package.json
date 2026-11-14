@@ -16,7 +16,7 @@
     "format": "prettier --write . && stylelint \"src/**/*.css\" --fix",
     "db:push": "supabase db push --remote",
     "db:test": "node --env-file-if-exists=.env scripts/db/test.mjs",
-    "gen:types": "supabase gen types typescript --project-id vytyunaoxxczrjlauhqk --schema public > src/app/core/supabase/database.types.ts",
+    "gen:types": "supabase gen types typescript --remote=vytyunaoxxczrjlauhqk --schema public > src/app/core/supabase/database.types.ts",
     "prepare": "lefthook install"
   },
   "private": true,
