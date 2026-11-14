@@ -219,7 +219,7 @@ Uma branch por marco do `docs/10`. Cada tarefa entrega telas reais do app (sem p
 ### Fase 2 — Back-end e banco
 | ✓ | ID | Branch | Entrega | Ler |
 |---|----|--------|---------|-----|
-| [ ] | F2-01 | `feat/f2-01-supabase-schema` | `supabase init`, migrações do `docs/07`, RLS, pgTAP, tipos gerados | 07 |
+| [x] | F2-01 | `feat/f2-01-supabase-schema` | `supabase init`, migrações do `docs/07`, RLS, pgTAP, tipos gerados | 07 |
 | [ ] | F2-02 | `feat/f2-02-auth-allowlist` | Lista de acesso, administrador, hook, login real com Google | 07, 08, 09 |
 | [ ] | F2-03 | `feat/f2-03-supabase-adapters` | `data-access/supabase` implementando as portas; RPCs | 02, 07 |
 | [ ] | F2-04 | `feat/f2-04-storage-assets` | Storage, URLs assinadas, `process-asset` | 02, 09 |
