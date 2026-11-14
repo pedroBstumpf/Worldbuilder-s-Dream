@@ -401,6 +401,8 @@ revoke execute on function public.world_role, public.can_read_world, public.can_
 grant execute on function public.world_role, public.can_read_world, public.can_edit_world to authenticated;
 ```
 
+**Aviso esperado nos *advisors*:** o Supabase marca estas funções e `shares_world_with` com o aviso [0029](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable) (*security definer* que `authenticated` pode chamar por `/rest/v1/rpc/…`). O aviso é aceito: as políticas de RLS rodam com o papel de quem consulta, então `authenticated` precisa de `execute`; as funções só respondem sobre o próprio usuário (`auth.uid()`), o que o RLS já deixa ver; e `anon` não as executa. Tirá-las da API (movê-las para um schema não exposto) exige ADR.
+
 ## Políticas RLS (padrão)
 Habilitar em **todas** as tabelas: `alter table public.<t> enable row level security;`
 
@@ -493,6 +495,7 @@ Os limites técnicos das imagens (`docs/02`: até 20 MB, 8192 px; no Storage só
 - Índices em **todas as FKs** usadas em filtros e em `world_id`.
 - `token_keyframes (token_id, tick)` atende a busca por janela; `get_map_scene` agrega com `jsonb_agg` para uma ida e volta.
 - Rodar `supabase inspect db` e os *advisors* (segurança e performance) no CI.
+- Com o banco sem uso, o advisor de performance marca esses índices como [*unused index*](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index); só reavaliar com uso real.
 
 ## Migrações
 - Criar com `supabase migration new <descricao>`; nome em inglês e imperativo (`add_entity_relations`).
